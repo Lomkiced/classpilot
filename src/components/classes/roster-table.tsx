@@ -230,7 +230,7 @@ export function RosterTable({ classGroupId, students }: RosterTableProps) {
 
       <EditStudentDialog 
         isOpen={!!editStudent} 
-        onOpenChange={(open) => !open && setEditStudent(null)} 
+        onOpenChange={(open: boolean) => !open && setEditStudent(null)} 
         form={editForm} 
         onSubmit={handleEditSubmit} 
         isPending={isPending} 

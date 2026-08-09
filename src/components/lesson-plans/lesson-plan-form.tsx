@@ -206,7 +206,7 @@ export function LessonPlanForm({ initialData, classes, sourceFileSignedUrl }: Le
           <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
             <div className="space-y-1">
               <Label className="text-xs uppercase tracking-wider text-gray-500">Class Group</Label>
-              <Select onValueChange={(val) => form.setValue("classGroupId", val)} value={form.watch("classGroupId")}>
+              <Select onValueChange={(val) => form.setValue("classGroupId", val as string)} value={form.watch("classGroupId")}>
                 <SelectTrigger className="border-gray-200 shadow-none focus:ring-pink-500">
                   <SelectValue placeholder="Select class" />
                 </SelectTrigger>

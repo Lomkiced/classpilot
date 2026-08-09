@@ -154,7 +154,7 @@ export function UploadLessonPlanDialog({ isOpen, onOpenChange, classes }: Upload
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label>Class</Label>
-              <Select disabled={isPending} value={classGroupId} onValueChange={setClassGroupId}>
+              <Select disabled={isPending} value={classGroupId} onValueChange={(val) => val && setClassGroupId(val)}>
                 <SelectTrigger>
                   <span data-slot="select-value" className="flex flex-1 text-left line-clamp-1">
                     {classGroupId ? classes.find(c => c.id === classGroupId)?.name : "Select class"}

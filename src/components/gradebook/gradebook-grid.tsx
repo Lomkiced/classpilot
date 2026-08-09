@@ -63,7 +63,7 @@ export function GradebookGrid({ classGroupId }: GradebookGridProps) {
   const [isDeletingAssessment, setIsDeletingAssessment] = useState(false);
 
   const form = useForm<CreateAssessmentInput>({
-    resolver: zodResolver(createAssessmentSchema),
+    resolver: zodResolver(createAssessmentSchema) as any,
     defaultValues: {
       classGroupId,
       name: "",
@@ -74,7 +74,7 @@ export function GradebookGrid({ classGroupId }: GradebookGridProps) {
   });
 
   const editForm = useForm<UpdateAssessmentInput>({
-    resolver: zodResolver(updateAssessmentSchema),
+    resolver: zodResolver(updateAssessmentSchema) as any,
   });
 
   const handleCreateAssessment = async (values: CreateAssessmentInput) => {
@@ -362,7 +362,7 @@ export function GradebookGrid({ classGroupId }: GradebookGridProps) {
               Create a new assessment column in the gradebook.
             </DialogDescription>
           </DialogHeader>
-          <form onSubmit={form.handleSubmit(handleCreateAssessment)} className="space-y-4 pt-4">
+          <form onSubmit={form.handleSubmit(handleCreateAssessment as any)} className="space-y-4 pt-4">
             <div className="space-y-2">
               <Label htmlFor="add-name">Name</Label>
               <Input id="add-name" {...form.register("name")} placeholder="e.g. Midterm Exam" className="focus-visible:ring-pink-500" />
@@ -417,7 +417,7 @@ export function GradebookGrid({ classGroupId }: GradebookGridProps) {
               Modify this assessment's details. Changing the max score will affect students' averages.
             </DialogDescription>
           </DialogHeader>
-          <form onSubmit={editForm.handleSubmit(handleEditAssessment)} className="space-y-4 pt-4">
+          <form onSubmit={editForm.handleSubmit(handleEditAssessment as any)} className="space-y-4 pt-4">
             <div className="space-y-2">
               <Label htmlFor="edit-name">Name</Label>
               <Input id="edit-name" {...editForm.register("name")} className="focus-visible:ring-pink-500" />

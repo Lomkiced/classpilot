@@ -156,7 +156,7 @@ export function AttendancePDF({ classGroup, students, year, month }: AttendanceP
             return (
               <View key={student.id} style={styles.tableRow}>
                 <View style={styles.studentCol}>
-                  <Text style={styles.cellText} numberOfLines={1}>
+                  <Text style={styles.cellText}>
                     {student.studentNumber ? `${student.studentNumber}. ` : ""}{student.fullName}
                   </Text>
                 </View>

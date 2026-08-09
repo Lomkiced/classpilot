@@ -19,7 +19,8 @@ export function ClassSelector({ classes, activeClassId }: ClassSelectorProps) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
 
-  const handleSelect = (classId: string) => {
+  const handleSelect = (classId: string | null) => {
+    if (!classId) return;
     const params = new URLSearchParams(searchParams.toString());
     params.set("class", classId);
     router.push(`${pathname}?${params.toString()}`);

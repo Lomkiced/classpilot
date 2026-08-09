@@ -225,7 +225,7 @@ export async function uploadAndExtractLessonPlan(formData: FormData) {
 
   // 3. Structure with AI
   let extracted;
-  let status = ExtractionStatus.SUCCESS;
+  let status: ExtractionStatus = ExtractionStatus.SUCCESS;
   try {
     extracted = await structureContentWithAI(rawText);
     

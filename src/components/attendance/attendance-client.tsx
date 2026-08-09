@@ -63,7 +63,8 @@ export function AttendanceClient({ classes, mode, dailyData, monthlyData, select
   const currentYear = currentDateObj.getUTCFullYear();
   const currentMonth = currentDateObj.getUTCMonth() + 1;
 
-  const handleClassChange = (classId: string) => {
+  const handleClassChange = (classId: string | null) => {
+    if (!classId) return;
     router.push(`/attendance?mode=${mode}&classId=${classId}&date=${format(currentDateObj, "yyyy-MM-dd")}`);
   };
 
@@ -376,7 +377,7 @@ function MonthlyGrid({ monthlyData, year, month }: { monthlyData: any, year: num
         {/* Body */}
         <div className="flex flex-col divide-y divide-gray-100">
           {monthlyData.students.map((item: any) => {
-            const recordMap = new Map(item.records.map((r: any) => [new Date(r.date).getUTCDate(), r.status]));
+            const recordMap = new Map<number, string>(item.records.map((r: any) => [new Date(r.date).getUTCDate(), r.status]));
             
             return (
               <div key={item.student.id} className="flex hover:bg-gray-50/50 transition-colors group">
@@ -390,8 +391,8 @@ function MonthlyGrid({ monthlyData, year, month }: { monthlyData: any, year: num
                     const status = recordMap.get(day);
                     return (
                       <div key={day} className="flex-1 border-r border-gray-100 flex items-center justify-center p-[2px] sm:p-1">
-                        <div className={`w-full aspect-square max-w-[24px] max-h-[24px] flex items-center justify-center rounded-[4px] text-[10px] font-bold transition-all ${getStatusStyle(status)}`}>
-                          {getStatusChar(status)}
+                        <div className={`w-full aspect-square max-w-[24px] max-h-[24px] flex items-center justify-center rounded-[4px] text-[10px] font-bold transition-all ${getStatusStyle(status || "")}`}>
+                          {getStatusChar(status || "")}
                         </div>
                       </div>
                     );

@@ -24,7 +24,7 @@ export function GradingScaleForm({ initialData }: GradingScaleFormProps) {
   const [isPending, startTransition] = useTransition();
 
   const form = useForm<GradingScaleInput>({
-    resolver: zodResolver(gradingScaleSchema),
+    resolver: zodResolver(gradingScaleSchema) as any,
     defaultValues: initialData ? {
       name: initialData.name,
       bands: initialData.bands,
@@ -39,8 +39,8 @@ export function GradingScaleForm({ initialData }: GradingScaleFormProps) {
   });
 
   const { fields, append, remove } = useFieldArray({
-    control: form.control,
     name: "bands",
+    control: form.control,
   });
 
   const onSubmit = (data: GradingScaleInput) => {
@@ -59,7 +59,7 @@ export function GradingScaleForm({ initialData }: GradingScaleFormProps) {
   };
 
   return (
-    <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
+    <form onSubmit={form.handleSubmit(onSubmit as any)} className="space-y-8">
       {/* Header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <Link href="/settings" className="inline-flex items-center text-sm font-medium text-gray-500 hover:text-gray-900">

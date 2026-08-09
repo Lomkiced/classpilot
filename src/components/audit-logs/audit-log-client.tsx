@@ -93,16 +93,18 @@ export function AuditLogClient({ initialLogs }: AuditLogClientProps) {
                   </td>
                   <td className="px-6 py-4 text-right whitespace-nowrap">
                     <Dialog>
-                      <DialogTrigger asChild>
-                        <Button 
-                          variant="ghost" 
-                          size="sm" 
-                          className="h-8 text-blue-600 hover:text-blue-700 hover:bg-blue-50"
-                          onClick={() => setSelectedLog(log)}
-                        >
-                          <FileJson className="h-4 w-4 mr-2" />
-                          View
-                        </Button>
+                      <DialogTrigger
+                        render={
+                          <Button 
+                            variant="ghost" 
+                            size="sm" 
+                            className="h-8 text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                            onClick={() => setSelectedLog(log)}
+                          />
+                        }
+                      >
+                        <FileJson className="h-4 w-4 mr-2" />
+                        View
                       </DialogTrigger>
                       <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
                         <DialogHeader>
