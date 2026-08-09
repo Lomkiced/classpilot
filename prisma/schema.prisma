@@ -46,6 +46,44 @@ enum AssessmentType {
   PARTICIPATION
 }
 
+enum SourceType {
+  MANUAL
+  UPLOADED
+}
+
+enum ExtractionStatus {
+  NOT_APPLICABLE
+  PENDING
+  SUCCESS
+  PARTIAL
+  FAILED
+}
+
+enum AttendanceStatus {
+  PRESENT
+  LATE
+  ABSENT
+  EXCUSED
+}
+
+enum ActionType {
+  CREATE
+  UPDATE
+  DELETE
+}
+
+enum ResourceType {
+  CLASS_GROUP
+  STUDENT
+  LESSON_PLAN
+  ATTENDANCE_RECORD
+  ASSESSMENT
+  SCORE
+  REMARK
+  TEACHER
+  SYSTEM
+}
+
 // ---------------------------------------------------------------------------
 // Teacher — maps 1:1 with Supabase auth.users
 // ---------------------------------------------------------------------------
@@ -59,6 +97,7 @@ model Teacher {
 
   classGroups   ClassGroup[]
   gradingScales GradingScale[]
+  auditLogs     AuditLog[]
 
   @@map("teachers")
 }
@@ -81,6 +120,7 @@ model ClassGroup {
   lessonPlans LessonPlan[]
   assessments Assessment[]
   remarks     Remark[]
+  attendance  AttendanceRecord[]
 
   @@index([teacherId])
   @@map("class_groups")
@@ -101,6 +141,7 @@ model Student {
   classGroups ClassGroupStudent[]
   scores      Score[]
   remarks     Remark[]
+  attendance  AttendanceRecord[]
 
   @@map("students")
 }
@@ -135,12 +176,18 @@ model LessonPlan {
   objectives      String           @db.Text
   materials       String           @db.Text
   procedure       Json // Array of step strings for PDF renderer iteration
-  assessmentNotes String           @db.Text
-  additionalNotes String?          @db.Text
-  status          LessonPlanStatus @default(DRAFT)
-  month           DateTime // Represents the month this plan covers
-  createdAt       DateTime         @default(now())
-  updatedAt       DateTime         @updatedAt
+  assessmentNotes  String           @db.Text
+  additionalNotes  String?          @db.Text
+  status           LessonPlanStatus @default(DRAFT)
+  month            DateTime // Represents the month this plan covers
+
+  sourceType       SourceType       @default(MANUAL)
+  sourceFileUrl    String?
+  sourceFileName   String?
+  extractionStatus ExtractionStatus @default(NOT_APPLICABLE)
+
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
 
   classGroup ClassGroup @relation(fields: [classGroupId], references: [id], onDelete: Cascade)
 
@@ -252,4 +299,47 @@ model Remark {
   @@index([classGroupId])
   @@index([gradeBandId])
   @@map("remarks")
+}
+
+// ---------------------------------------------------------------------------
+// AttendanceRecord — student attendance tracking per date
+// ---------------------------------------------------------------------------
+
+model AttendanceRecord {
+  id           String           @id @default(uuid()) @db.Uuid
+  classGroupId String           @db.Uuid
+  studentId    String           @db.Uuid
+  date         DateTime         @db.Date
+  status       AttendanceStatus
+  notes        String?          @db.Text
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+
+  classGroup ClassGroup @relation(fields: [classGroupId], references: [id], onDelete: Cascade)
+  student    Student    @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@unique([classGroupId, studentId, date])
+  @@index([classGroupId, date])
+  @@map("attendance_records")
+}
+
+// ---------------------------------------------------------------------------
+// AuditLog — tracks system actions for monitoring
+// ---------------------------------------------------------------------------
+
+model AuditLog {
+  id           String       @id @default(uuid()) @db.Uuid
+  teacherId    String       @db.Uuid // The actor who performed the action
+  action       ActionType
+  resourceType ResourceType
+  resourceId   String?      
+  details      Json?        
+  createdAt    DateTime     @default(now())
+
+  teacher      Teacher      @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+
+  @@index([teacherId])
+  @@index([resourceType])
+  @@index([createdAt(sort: Desc)])
+  @@map("audit_logs")
 }

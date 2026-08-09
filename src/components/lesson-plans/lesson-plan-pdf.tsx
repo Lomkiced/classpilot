@@ -1,0 +1,194 @@
+import {
+  Document,
+  Page,
+  Text,
+  View,
+  StyleSheet,
+  Font,
+} from "@react-pdf/renderer";
+import { format } from "date-fns";
+import type { ProcedureStep } from "@/lib/validations/lesson-plans";
+
+// You can register custom fonts here if needed, e.g. Inter or Roboto
+// Font.register({ family: 'Inter', src: '...' });
+
+const styles = StyleSheet.create({
+  page: {
+    padding: 40,
+    fontFamily: "Helvetica",
+    fontSize: 11,
+    color: "#1f2937", // text-gray-800
+    lineHeight: 1.5,
+  },
+  header: {
+    marginBottom: 30,
+    borderBottomWidth: 1,
+    borderBottomColor: "#e5e7eb",
+    paddingBottom: 20,
+  },
+  title: {
+    fontSize: 24,
+    fontFamily: "Helvetica-Bold",
+    color: "#111827",
+    marginBottom: 8,
+  },
+  metaContainer: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginTop: 10,
+  },
+  metaColumn: {
+    flexDirection: "column",
+    gap: 4,
+  },
+  metaLabel: {
+    fontSize: 9,
+    fontFamily: "Helvetica-Bold",
+    color: "#6b7280",
+    textTransform: "uppercase",
+  },
+  metaValue: {
+    fontSize: 11,
+    color: "#374151",
+  },
+  section: {
+    marginBottom: 24,
+  },
+  sectionTitle: {
+    fontSize: 14,
+    fontFamily: "Helvetica-Bold",
+    color: "#111827",
+    marginBottom: 8,
+    backgroundColor: "#f9fafb",
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    borderRadius: 2,
+  },
+  paragraph: {
+    paddingHorizontal: 8,
+  },
+  procedureList: {
+    flexDirection: "column",
+    gap: 8,
+    paddingHorizontal: 8,
+  },
+  procedureItem: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+  },
+  procedureNumber: {
+    width: 20,
+    fontFamily: "Helvetica-Bold",
+    color: "#db2777", // pink-600
+  },
+  procedureText: {
+    flex: 1,
+  },
+  footer: {
+    position: "absolute",
+    bottom: 30,
+    left: 40,
+    right: 40,
+    textAlign: "center",
+    color: "#9ca3af",
+    fontSize: 9,
+    borderTopWidth: 1,
+    borderTopColor: "#e5e7eb",
+    paddingTop: 10,
+  },
+});
+
+interface LessonPlanPDFProps {
+  plan: {
+    title: string;
+    month: Date;
+    objectives: string;
+    materials: string;
+    procedure: any;
+    assessmentNotes: string;
+    additionalNotes: string | null;
+    classGroup: {
+      name: string;
+    };
+  };
+  teacherName: string;
+}
+
+export function LessonPlanPDF({ plan, teacherName }: LessonPlanPDFProps) {
+  const steps = plan.procedure as ProcedureStep[];
+
+  return (
+    <Document>
+      <Page size="A4" style={styles.page}>
+        {/* Header */}
+        <View style={styles.header}>
+          <Text style={styles.title}>{plan.title}</Text>
+          <View style={styles.metaContainer}>
+            <View style={styles.metaColumn}>
+              <Text style={styles.metaLabel}>Class</Text>
+              <Text style={styles.metaValue}>{plan.classGroup.name}</Text>
+            </View>
+            <View style={styles.metaColumn}>
+              <Text style={styles.metaLabel}>Month</Text>
+              <Text style={styles.metaValue}>
+                {format(new Date(plan.month), "MMMM yyyy")}
+              </Text>
+            </View>
+            <View style={styles.metaColumn}>
+              <Text style={styles.metaLabel}>Teacher</Text>
+              <Text style={styles.metaValue}>{teacherName}</Text>
+            </View>
+          </View>
+        </View>
+
+        {/* Objectives */}
+        <View style={styles.section} wrap={false}>
+          <Text style={styles.sectionTitle}>Objectives</Text>
+          <Text style={styles.paragraph}>{plan.objectives}</Text>
+        </View>
+
+        {/* Materials */}
+        <View style={styles.section} wrap={false}>
+          <Text style={styles.sectionTitle}>Materials Needed</Text>
+          <Text style={styles.paragraph}>{plan.materials}</Text>
+        </View>
+
+        {/* Procedure */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Procedure</Text>
+          <View style={styles.procedureList}>
+            {steps.map((step, index) => (
+              <View key={index} style={styles.procedureItem} wrap={false}>
+                <Text style={styles.procedureNumber}>{index + 1}.</Text>
+                <Text style={styles.procedureText}>{step.value}</Text>
+              </View>
+            ))}
+          </View>
+        </View>
+
+        {/* Assessment */}
+        <View style={styles.section} wrap={false}>
+          <Text style={styles.sectionTitle}>Assessment & Checking for Understanding</Text>
+          <Text style={styles.paragraph}>{plan.assessmentNotes}</Text>
+        </View>
+
+        {/* Notes */}
+        {plan.additionalNotes && (
+          <View style={styles.section} wrap={false}>
+            <Text style={styles.sectionTitle}>Additional Notes</Text>
+            <Text style={styles.paragraph}>{plan.additionalNotes}</Text>
+          </View>
+        )}
+
+        {/* Footer (Page Numbers) */}
+        <Text
+          style={styles.footer}
+          render={({ pageNumber, totalPages }) =>
+            `Page ${pageNumber} of ${totalPages} - Generated by ClassPilot`
+          }
+          fixed
+        />
+      </Page>
+    </Document>
+  );
+}
