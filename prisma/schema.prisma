@@ -1,7 +1,16 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Get a free hosted Postgres database in seconds: `npx create-db`
+// ============================================================================
+// ClassPilot — Prisma Schema
+// ============================================================================
+//
+// DATABASE_URL should point to Supabase's **connection pooler** (Transaction mode):
+//   postgresql://postgres.[ref]:[password]@aws-0-[region].pooler.supabase.com:6543/postgres?pgbouncer=true
+//
+// DIRECT_URL should point to the **direct connection** (required for migrations):
+//   postgresql://postgres.[ref]:[password]@aws-0-[region].pooler.supabase.com:5432/postgres
+//
+// Prisma uses DIRECT_URL for `prisma migrate dev` (DDL operations that require
+// a direct connection), and DATABASE_URL for all runtime queries via the pooler.
+// ============================================================================
 
 generator client {
   provider = "prisma-client"
@@ -10,4 +19,237 @@ generator client {
 
 datasource db {
   provider = "postgresql"
+}
+
+// ---------------------------------------------------------------------------
+// Enums
+// ---------------------------------------------------------------------------
+
+enum GradeLevel {
+  P1
+  P2
+  P3
+  P4
+  P5_6
+}
+
+enum LessonPlanStatus {
+  DRAFT
+  SUBMITTED
+  APPROVED
+}
+
+enum AssessmentType {
+  QUIZ
+  ACTIVITY
+  HOMEWORK
+  PARTICIPATION
+}
+
+// ---------------------------------------------------------------------------
+// Teacher — maps 1:1 with Supabase auth.users
+// ---------------------------------------------------------------------------
+
+model Teacher {
+  id        String   @id @default(uuid()) @db.Uuid
+  email     String   @unique
+  name      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  classGroups   ClassGroup[]
+  gradingScales GradingScale[]
+
+  @@map("teachers")
+}
+
+// ---------------------------------------------------------------------------
+// ClassGroup — e.g. "P1 Math", "P5/6 Math Mixed"
+// ---------------------------------------------------------------------------
+
+model ClassGroup {
+  id         String     @id @default(uuid()) @db.Uuid
+  name       String
+  gradeLevel GradeLevel
+  subject    String
+  teacherId  String     @db.Uuid
+  createdAt  DateTime   @default(now())
+  updatedAt  DateTime   @updatedAt
+
+  teacher     Teacher             @relation(fields: [teacherId], references: [id])
+  students    ClassGroupStudent[]
+  lessonPlans LessonPlan[]
+  assessments Assessment[]
+  remarks     Remark[]
+
+  @@index([teacherId])
+  @@map("class_groups")
+}
+
+// ---------------------------------------------------------------------------
+// Student
+// ---------------------------------------------------------------------------
+
+model Student {
+  id            String   @id @default(uuid()) @db.Uuid
+  fullName      String
+  studentNumber String?
+  notes         String?  @db.Text
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  classGroups ClassGroupStudent[]
+  scores      Score[]
+  remarks     Remark[]
+
+  @@map("students")
+}
+
+// ---------------------------------------------------------------------------
+// ClassGroupStudent — explicit join table (ClassGroup <-> Student M:N)
+// ---------------------------------------------------------------------------
+
+model ClassGroupStudent {
+  id           String   @id @default(uuid()) @db.Uuid
+  classGroupId String   @db.Uuid
+  studentId    String   @db.Uuid
+  createdAt    DateTime @default(now())
+
+  classGroup ClassGroup @relation(fields: [classGroupId], references: [id], onDelete: Cascade)
+  student    Student    @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@unique([classGroupId, studentId])
+  @@index([classGroupId])
+  @@index([studentId])
+  @@map("class_group_students")
+}
+
+// ---------------------------------------------------------------------------
+// LessonPlan
+// ---------------------------------------------------------------------------
+
+model LessonPlan {
+  id              String           @id @default(uuid()) @db.Uuid
+  classGroupId    String           @db.Uuid
+  title           String
+  objectives      String           @db.Text
+  materials       String           @db.Text
+  procedure       Json // Array of step strings for PDF renderer iteration
+  assessmentNotes String           @db.Text
+  additionalNotes String?          @db.Text
+  status          LessonPlanStatus @default(DRAFT)
+  month           DateTime // Represents the month this plan covers
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  classGroup ClassGroup @relation(fields: [classGroupId], references: [id], onDelete: Cascade)
+
+  @@index([classGroupId])
+  @@map("lesson_plans")
+}
+
+// ---------------------------------------------------------------------------
+// Assessment — quiz, activity, homework, or participation record
+// ---------------------------------------------------------------------------
+
+model Assessment {
+  id           String         @id @default(uuid()) @db.Uuid
+  classGroupId String         @db.Uuid
+  name         String
+  type         AssessmentType
+  maxScore     Float
+  date         DateTime
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+
+  classGroup ClassGroup @relation(fields: [classGroupId], references: [id], onDelete: Cascade)
+  scores     Score[]
+
+  @@index([classGroupId])
+  @@map("assessments")
+}
+
+// ---------------------------------------------------------------------------
+// Score — individual student score for an assessment
+// ---------------------------------------------------------------------------
+
+model Score {
+  id           String   @id @default(uuid()) @db.Uuid
+  assessmentId String   @db.Uuid
+  studentId    String   @db.Uuid
+  value        Float? // null = not yet graded
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  assessment Assessment @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
+  student    Student    @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@unique([assessmentId, studentId])
+  @@index([assessmentId])
+  @@index([studentId])
+  @@map("scores")
+}
+
+// ---------------------------------------------------------------------------
+// GradingScale — configurable grading system per teacher
+// ---------------------------------------------------------------------------
+
+model GradingScale {
+  id        String   @id @default(uuid()) @db.Uuid
+  teacherId String   @db.Uuid
+  name      String
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  teacher Teacher     @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  bands   GradeBand[]
+
+  @@index([teacherId])
+  @@map("grading_scales")
+}
+
+// ---------------------------------------------------------------------------
+// GradeBand — individual band within a grading scale
+// ---------------------------------------------------------------------------
+
+model GradeBand {
+  id             String   @id @default(uuid()) @db.Uuid
+  gradingScaleId String   @db.Uuid
+  label          String // e.g. "Excellent", "4", "A"
+  minPercent     Float
+  maxPercent     Float
+  order          Int // For sorting bands in display order
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  gradingScale GradingScale @relation(fields: [gradingScaleId], references: [id], onDelete: Cascade)
+  remarks      Remark[]
+
+  @@index([gradingScaleId])
+  @@map("grade_bands")
+}
+
+// ---------------------------------------------------------------------------
+// Remark — teacher's written remark for a student per grading period
+// ---------------------------------------------------------------------------
+
+model Remark {
+  id            String   @id @default(uuid()) @db.Uuid
+  studentId     String   @db.Uuid
+  classGroupId  String   @db.Uuid
+  gradingPeriod String // e.g. "Term 1", "August 2026"
+  content       String   @db.Text
+  gradeBandId   String?  @db.Uuid // Optional — auto-suggested based on scores
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  student    Student    @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  classGroup ClassGroup @relation(fields: [classGroupId], references: [id], onDelete: Cascade)
+  gradeBand  GradeBand? @relation(fields: [gradeBandId], references: [id], onDelete: SetNull)
+
+  @@index([studentId])
+  @@index([classGroupId])
+  @@index([gradeBandId])
+  @@map("remarks")
 }
