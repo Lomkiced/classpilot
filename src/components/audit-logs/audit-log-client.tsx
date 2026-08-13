@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { format } from "date-fns";
-import { Search, Activity, FileJson, Clock, User, ShieldAlert } from "lucide-react";
+import { Search, Activity, FileText, Clock, User, ShieldAlert, ChevronRight } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -22,8 +22,7 @@ export function AuditLogClient({ initialLogs }: AuditLogClientProps) {
     return (
       log.action.toLowerCase().includes(term) ||
       log.resourceType.toLowerCase().includes(term) ||
-      log.teacher?.name.toLowerCase().includes(term) ||
-      (log.resourceId && log.resourceId.toLowerCase().includes(term))
+      log.teacher?.name.toLowerCase().includes(term)
     );
   });
 
@@ -36,6 +35,28 @@ export function AuditLogClient({ initialLogs }: AuditLogClientProps) {
     }
   };
 
+  // Helper to nicely format camelCase keys to Title Case
+  const formatKey = (key: string) => {
+    return key.replace(/([A-Z])/g, " $1").replace(/^./, (str) => str.toUpperCase());
+  };
+
+  // Helper to format values for readability
+  const formatValue = (key: string, value: any) => {
+    if (value === null || value === undefined) return "N/A";
+    if (typeof value === "boolean") return value ? "Yes" : "No";
+    if (key.toLowerCase().includes("date") && typeof value === "string") {
+      try {
+        return format(new Date(value), "PPP");
+      } catch (e) {
+        return value;
+      }
+    }
+    if (typeof value === "object") {
+      return Array.isArray(value) ? `[${value.length} items]` : "{ ... }";
+    }
+    return String(value);
+  };
+
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
       <Card className="p-4 flex flex-col sm:flex-row gap-4 justify-between border-gray-200 shadow-sm">
@@ -43,7 +64,7 @@ export function AuditLogClient({ initialLogs }: AuditLogClientProps) {
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
           <Input 
             type="text"
-            placeholder="Search logs by action, resource, or actor..."
+            placeholder="Search activity by action, resource, or actor..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="pl-9 bg-gray-50 border-gray-200"
@@ -60,7 +81,7 @@ export function AuditLogClient({ initialLogs }: AuditLogClientProps) {
                 <th className="px-6 py-4">Actor</th>
                 <th className="px-6 py-4">Action</th>
                 <th className="px-6 py-4">Resource</th>
-                <th className="px-6 py-4 text-right">Payload</th>
+                <th className="px-6 py-4 text-right"></th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
@@ -69,7 +90,7 @@ export function AuditLogClient({ initialLogs }: AuditLogClientProps) {
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="flex items-center gap-2">
                       <Clock className="h-4 w-4 text-gray-400" />
-                      {format(new Date(log.createdAt), "MMM d, yyyy HH:mm:ss")}
+                      {format(new Date(log.createdAt), "MMM d, yyyy HH:mm")}
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
@@ -86,9 +107,6 @@ export function AuditLogClient({ initialLogs }: AuditLogClientProps) {
                   <td className="px-6 py-4">
                     <div className="flex flex-col">
                       <span className="font-semibold text-gray-900">{log.resourceType}</span>
-                      <span className="text-xs text-gray-400 font-mono truncate max-w-[150px]">
-                        {log.resourceId || "N/A"}
-                      </span>
                     </div>
                   </td>
                   <td className="px-6 py-4 text-right whitespace-nowrap">
@@ -98,40 +116,77 @@ export function AuditLogClient({ initialLogs }: AuditLogClientProps) {
                           <Button 
                             variant="ghost" 
                             size="sm" 
-                            className="h-8 text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                            className="h-8 text-pink-600 hover:text-pink-700 hover:bg-pink-50 font-medium"
                             onClick={() => setSelectedLog(log)}
-                          />
+                          >
+                            View Details
+                            <ChevronRight className="h-4 w-4 ml-1" />
+                          </Button>
                         }
                       >
-                        <FileJson className="h-4 w-4 mr-2" />
+                        <FileText className="h-4 w-4 mr-2" />
                         View
                       </DialogTrigger>
-                      <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+                      <DialogContent className="sm:max-w-[500px]">
                         <DialogHeader>
-                          <DialogTitle className="flex items-center gap-2">
-                            <Activity className="h-5 w-5 text-gray-500" />
-                            Log Details
+                          <DialogTitle className="flex items-center gap-2 text-xl font-bold">
+                            <Activity className="h-5 w-5 text-pink-500" />
+                            Activity Details
                           </DialogTitle>
                         </DialogHeader>
-                        <div className="mt-4 space-y-4">
-                          <div className="grid grid-cols-2 gap-4 text-sm bg-gray-50 p-4 rounded-lg border border-gray-200">
-                            <div><span className="text-gray-500">ID:</span> <span className="font-mono text-gray-900">{selectedLog?.id}</span></div>
-                            <div><span className="text-gray-500">Date:</span> <span className="font-medium text-gray-900">{selectedLog && format(new Date(selectedLog.createdAt), "PPpp")}</span></div>
-                            <div><span className="text-gray-500">Actor:</span> <span className="font-medium text-gray-900">{selectedLog?.teacher?.name} ({selectedLog?.teacher?.email})</span></div>
-                            <div><span className="text-gray-500">Resource:</span> <span className="font-medium text-gray-900">{selectedLog?.resourceType}</span></div>
-                            <div className="col-span-2"><span className="text-gray-500">Target ID:</span> <span className="font-mono text-gray-900">{selectedLog?.resourceId}</span></div>
+                        
+                        <div className="mt-6 space-y-6">
+                          {/* Core Meta Info */}
+                          <div className="flex items-center justify-between border-b border-gray-100 pb-4">
+                            <div>
+                              <p className="text-xs text-gray-500 font-medium mb-1">Actor</p>
+                              <p className="text-sm font-semibold text-gray-900">{selectedLog?.teacher?.name || "System"}</p>
+                            </div>
+                            <div className="text-right">
+                              <p className="text-xs text-gray-500 font-medium mb-1">Date & Time</p>
+                              <p className="text-sm font-semibold text-gray-900">{selectedLog && format(new Date(selectedLog.createdAt), "MMM d, yyyy 'at' h:mm a")}</p>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-4 border-b border-gray-100 pb-4">
+                            <div className="flex-1">
+                              <p className="text-xs text-gray-500 font-medium mb-1">Action Type</p>
+                              <span className={`px-2.5 py-1 rounded-full text-xs font-bold border inline-block ${selectedLog ? getActionColor(selectedLog.action) : ""}`}>
+                                {selectedLog?.action}
+                              </span>
+                            </div>
+                            <div className="flex-1">
+                              <p className="text-xs text-gray-500 font-medium mb-1">Resource Affected</p>
+                              <p className="text-sm font-semibold text-gray-900">{selectedLog?.resourceType}</p>
+                            </div>
                           </div>
                           
+                          {/* Structured Payload Info (No Code Blocks) */}
                           <div>
-                            <h4 className="text-sm font-semibold text-gray-900 mb-2">Payload Data</h4>
-                            {selectedLog?.details ? (
-                              <pre className="bg-gray-900 text-gray-100 p-4 rounded-lg text-xs font-mono overflow-x-auto shadow-inner">
-                                {JSON.stringify(selectedLog.details, null, 2)}
-                              </pre>
+                            <h4 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                              <FileText className="h-4 w-4 text-gray-400" />
+                              Recorded Data
+                            </h4>
+                            {selectedLog?.details && Object.keys(selectedLog.details).length > 0 ? (
+                              <div className="grid grid-cols-2 gap-3">
+                                {Object.entries(selectedLog.details).map(([key, value]) => {
+                                  // Skip system IDs from UI to keep it clean
+                                  if (key.toLowerCase().endsWith("id")) return null;
+                                  
+                                  return (
+                                    <div key={key} className="bg-gray-50 p-3 rounded-lg border border-gray-100">
+                                      <p className="text-xs text-gray-500 font-medium mb-1 truncate">{formatKey(key)}</p>
+                                      <p className="text-sm font-semibold text-gray-900 truncate" title={formatValue(key, value)}>
+                                        {formatValue(key, value)}
+                                      </p>
+                                    </div>
+                                  );
+                                })}
+                              </div>
                             ) : (
-                              <div className="bg-gray-50 p-4 rounded-lg text-sm text-gray-500 flex items-center gap-2 border border-dashed border-gray-300">
-                                <ShieldAlert className="h-4 w-4" />
-                                No payload details were provided for this action.
+                              <div className="bg-gray-50 p-6 rounded-xl text-sm text-gray-500 flex flex-col items-center justify-center gap-2 border border-dashed border-gray-200">
+                                <ShieldAlert className="h-5 w-5 text-gray-400" />
+                                <p>No additional data was recorded for this action.</p>
                               </div>
                             )}
                           </div>
