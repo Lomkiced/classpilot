@@ -1,89 +1,93 @@
 import { Logo } from "@/components/ui/logo";
 
-export function GlobalLoader() {
+interface GlobalLoaderProps {
+  variant?: "fullscreen" | "container";
+}
+
+export function GlobalLoader({ variant = "container" }: GlobalLoaderProps) {
+  const containerClasses =
+    variant === "fullscreen"
+      ? "flex min-h-screen w-full flex-col items-center justify-center overflow-hidden bg-gray-50"
+      : "relative flex h-full w-full min-h-[calc(100vh-200px)] flex-col items-center justify-center overflow-hidden rounded-2xl bg-white/50 backdrop-blur-sm";
+
   return (
-    <div className="relative flex h-full w-full min-h-[400px] flex-col items-center justify-center overflow-hidden bg-gray-50/50">
+    <div className={containerClasses}>
       
       {/* 
-        The Core Loading System 
-        Unique Gyroscopic / Radar Sweep Design
+        Premium Loading State
+        Uses smooth glowing pulses and continuous rings instead of segmented dashes.
       */}
       <div className="relative flex h-48 w-48 items-center justify-center">
         
-        {/* Outer Ring - Slow Reverse Spin */}
-        <div className="absolute inset-0 animate-[spin_8s_linear_infinite_reverse]">
-          <svg className="h-full w-full text-pink-200" viewBox="0 0 100 100">
-            <circle
-              cx="50"
-              cy="50"
-              r="48"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1"
-              strokeDasharray="4 8"
-            />
-          </svg>
-        </div>
+        {/* Soft Glowing Ambient Backdrop */}
+        <div className="absolute h-32 w-32 animate-[pulse_3s_ease-in-out_infinite] rounded-full bg-pink-500/10 blur-2xl"></div>
+        <div className="absolute h-24 w-24 animate-[pulse_2s_ease-in-out_infinite_reverse] rounded-full bg-pink-400/20 blur-xl"></div>
 
-        {/* Middle Ring - Fast Forward Spin with gradient sweep */}
-        <div className="absolute inset-2 animate-[spin_3s_linear_infinite]">
+        {/* Outer Ring - Continuous smooth gradient spin */}
+        <div className="absolute inset-0 animate-[spin_4s_linear_infinite]">
           <svg className="h-full w-full" viewBox="0 0 100 100">
             <defs>
-              <linearGradient id="loader-gradient" x1="0%" y1="0%" x2="100%" y2="0%">
+              <linearGradient id="premium-gradient-1" x1="100%" y1="0%" x2="0%" y2="100%">
                 <stop offset="0%" stopColor="#ec4899" stopOpacity="0" />
-                <stop offset="50%" stopColor="#ec4899" stopOpacity="0.8" />
+                <stop offset="50%" stopColor="#ec4899" stopOpacity="0.6" />
                 <stop offset="100%" stopColor="#ec4899" stopOpacity="0" />
               </linearGradient>
             </defs>
             <circle
               cx="50"
               cy="50"
-              r="44"
+              r="46"
               fill="none"
-              stroke="url(#loader-gradient)"
-              strokeWidth="2"
+              stroke="url(#premium-gradient-1)"
+              strokeWidth="1.5"
               strokeLinecap="round"
-              strokeDasharray="138 138" // Approx half circumference
             />
           </svg>
         </div>
 
-        {/* Inner Ring - Pulsing Dashes */}
-        <div className="absolute inset-6 animate-[spin_12s_linear_infinite]">
-          <svg className="h-full w-full text-pink-400/50" viewBox="0 0 100 100">
+        {/* Inner Ring - Counter-spin with a tighter radius */}
+        <div className="absolute inset-4 animate-[spin_3s_linear_infinite_reverse]">
+          <svg className="h-full w-full" viewBox="0 0 100 100">
+            <defs>
+              <linearGradient id="premium-gradient-2" x1="0%" y1="100%" x2="100%" y2="0%">
+                <stop offset="0%" stopColor="#f472b6" stopOpacity="0" />
+                <stop offset="50%" stopColor="#f472b6" stopOpacity="0.8" />
+                <stop offset="100%" stopColor="#f472b6" stopOpacity="0" />
+              </linearGradient>
+            </defs>
             <circle
               cx="50"
               cy="50"
-              r="38"
+              r="42"
               fill="none"
-              stroke="currentColor"
+              stroke="url(#premium-gradient-2)"
               strokeWidth="2"
-              strokeDasharray="20 10 5 10"
+              strokeLinecap="round"
             />
           </svg>
         </div>
 
-        {/* Glowing Backdrop behind the Logo */}
-        <div className="absolute h-16 w-16 animate-pulse rounded-full bg-pink-500/20 blur-xl"></div>
-
         {/* The ClassPilot Logo Core */}
-        <div className="relative z-10 animate-pulse transition-transform duration-1000 ease-in-out">
-          <Logo size="lg" showText={false} />
+        <div className="relative z-10 animate-[bounce_2s_ease-in-out_infinite] transition-transform duration-700">
+          <div className="rounded-2xl bg-white p-3 shadow-[0_0_40px_-10px_rgba(236,72,153,0.3)] ring-1 ring-black/5">
+            <Logo size="lg" showText={false} />
+          </div>
         </div>
       </div>
 
       {/* Typography */}
-      <div className="mt-8 flex flex-col items-center">
-        <h3 className="text-sm font-bold uppercase tracking-[0.2em] text-gray-900">
-          ClassPilot
+      <div className="mt-6 flex flex-col items-center">
+        <h3 className="text-sm font-semibold tracking-widest text-gray-900">
+          CLASSPILOT
         </h3>
-        <p className="mt-2 flex items-center gap-2 text-xs font-medium text-gray-500">
-          <span className="relative flex h-2 w-2">
-            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-pink-400 opacity-75"></span>
-            <span className="relative inline-flex h-2 w-2 rounded-full bg-pink-500"></span>
-          </span>
-          Synchronizing Systems...
-        </p>
+        <div className="mt-3 flex items-center gap-2">
+          <div className="flex space-x-1">
+            <div className="h-1.5 w-1.5 animate-[bounce_1.4s_infinite_ease-in-out_0.2s] rounded-full bg-pink-500"></div>
+            <div className="h-1.5 w-1.5 animate-[bounce_1.4s_infinite_ease-in-out_0.4s] rounded-full bg-pink-400"></div>
+            <div className="h-1.5 w-1.5 animate-[bounce_1.4s_infinite_ease-in-out_0.6s] rounded-full bg-pink-300"></div>
+          </div>
+          <span className="text-xs font-medium text-gray-500">Loading your workspace</span>
+        </div>
       </div>
 
     </div>
