@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { redirect } from "next/navigation";
 import { getClassGroups, getStudentsForClass } from "@/server/actions/classes";
 import { RosterTable } from "@/components/classes/roster-table";
 
@@ -26,11 +25,8 @@ export default async function ClassesPage({ searchParams }: PageProps) {
   const activeClassParam = awaitedSearchParams.class as string;
   const activeClass = classes.find((c) => c.id === activeClassParam) || classes[0];
 
-  // If a class is found but URL param is missing, we could redirect, but 
-  // rendering it directly is faster and we can let the UI dictate the active state
-  
-  // Fetch students for the active class
-  const students = await getStudentsForClass(activeClass.id);
+  // Fetch students on the server for initial data (avoids loading state on first render)
+  const initialStudents = await getStudentsForClass(activeClass.id);
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
@@ -63,9 +59,9 @@ export default async function ClassesPage({ searchParams }: PageProps) {
         </div>
       </div>
 
-      {/* Roster Area */}
+      {/* Roster Area — passes server-fetched data as initialData for TanStack Query */}
       <div>
-        <RosterTable classGroupId={activeClass.id} students={students} />
+        <RosterTable classGroupId={activeClass.id} initialStudents={initialStudents} />
       </div>
 
     </div>

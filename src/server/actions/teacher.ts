@@ -1,7 +1,7 @@
 "use server";
 
 import { prisma } from "@/lib/prisma";
-import { createClient } from "@/lib/supabase/server";
+import { getAuthenticatedUser } from "@/lib/auth";
 
 /**
  * Ensures a Teacher record exists in our database for the currently
@@ -11,12 +11,12 @@ import { createClient } from "@/lib/supabase/server";
  * Returns the Teacher record, or null if no authenticated user.
  */
 export async function ensureTeacher() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) return null;
+  let user;
+  try {
+    user = await getAuthenticatedUser();
+  } catch {
+    return null;
+  }
 
   const teacher = await prisma.teacher.upsert({
     where: { id: user.id },

@@ -1,15 +1,13 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useRouter } from "next/navigation";
-import { Plus, MoreHorizontal, Pencil, Trash2, Users } from "lucide-react";
-import { toast } from "sonner";
+import { Plus, MoreHorizontal, Pencil, Trash2, Users, Loader2 } from "lucide-react";
 
 import type { Student } from "@/generated/prisma/client";
 import { addStudentSchema, updateStudentSchema, type AddStudentInput, type UpdateStudentInput } from "@/lib/validations/classes";
-import { addStudent, updateStudent, removeStudentFromClass } from "@/server/actions/classes";
+import { useRosterQuery, useAddStudentMutation, useUpdateStudentMutation, useRemoveStudentMutation } from "@/hooks/use-roster";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 
 import { Button } from "@/components/ui/button";
@@ -41,12 +39,17 @@ import {
 
 interface RosterTableProps {
   classGroupId: string;
-  students: Student[];
+  initialStudents: Student[];
 }
 
-export function RosterTable({ classGroupId, students }: RosterTableProps) {
-  const router = useRouter();
-  const [isPending, startTransition] = useTransition();
+export function RosterTable({ classGroupId, initialStudents }: RosterTableProps) {
+  // TanStack Query — hydrated with server-fetched initialData for instant first paint
+  const { data: students = [], isLoading } = useRosterQuery(classGroupId, initialStudents);
+  
+  // Optimistic mutations
+  const addMutation = useAddStudentMutation(classGroupId);
+  const updateMutation = useUpdateStudentMutation(classGroupId);
+  const removeMutation = useRemoveStudentMutation(classGroupId);
 
   // Dialog states
   const [isAddOpen, setIsAddOpen] = useState(false);
@@ -63,55 +66,40 @@ export function RosterTable({ classGroupId, students }: RosterTableProps) {
     resolver: zodResolver(updateStudentSchema),
   });
 
+  // Derived pending state from any active mutation
+  const isPending = addMutation.isPending || updateMutation.isPending || removeMutation.isPending;
+
   // ---------------------------------------------------------------------------
-  // Handlers
+  // Handlers — No more router.refresh()! Mutations handle cache updates.
   // ---------------------------------------------------------------------------
 
   const handleAddSubmit = async (data: AddStudentInput) => {
-    startTransition(async () => {
-      try {
-        const result = await addStudent(classGroupId, data);
-        if (result.success) {
-          toast.success("Student added successfully");
-          setIsAddOpen(false);
-          addForm.reset();
-          router.refresh();
-        }
-      } catch (error) {
-        toast.error("Failed to add student");
-      }
+    addMutation.mutate(data, {
+      onSuccess: () => {
+        setIsAddOpen(false);
+        addForm.reset();
+      },
     });
   };
 
   const handleEditSubmit = async (data: UpdateStudentInput) => {
     if (!editStudent) return;
-    startTransition(async () => {
-      try {
-        const result = await updateStudent(editStudent.id, data);
-        if (result.success) {
-          toast.success("Student updated");
+    updateMutation.mutate(
+      { studentId: editStudent.id, data },
+      {
+        onSuccess: () => {
           setEditStudent(null);
-          router.refresh();
-        }
-      } catch (error) {
-        toast.error("Failed to update student");
+        },
       }
-    });
+    );
   };
 
   const handleRemove = async () => {
     if (!studentToRemove) return;
-    startTransition(async () => {
-      try {
-        const result = await removeStudentFromClass(classGroupId, studentToRemove);
-        if (result.success) {
-          toast.success("Student removed");
-          setStudentToRemove(null);
-          router.refresh();
-        }
-      } catch (error) {
-        toast.error("Failed to remove student");
-      }
+    removeMutation.mutate(studentToRemove, {
+      onSuccess: () => {
+        setStudentToRemove(null);
+      },
     });
   };
 
@@ -123,6 +111,17 @@ export function RosterTable({ classGroupId, students }: RosterTableProps) {
       notes: student.notes || "",
     });
   };
+
+  // ---------------------------------------------------------------------------
+  // Loading State (only on hard refresh, never with initialData)
+  // ---------------------------------------------------------------------------
+  if (isLoading) {
+    return (
+      <div className="flex min-h-[400px] items-center justify-center rounded-xl border border-gray-200 bg-white">
+        <Loader2 className="h-6 w-6 animate-spin text-gray-400" />
+      </div>
+    );
+  }
 
   // ---------------------------------------------------------------------------
   // Empty State
@@ -148,7 +147,7 @@ export function RosterTable({ classGroupId, students }: RosterTableProps) {
           onOpenChange={setIsAddOpen} 
           form={addForm} 
           onSubmit={handleAddSubmit} 
-          isPending={isPending} 
+          isPending={addMutation.isPending} 
         />
       </div>
     );
@@ -183,9 +182,17 @@ export function RosterTable({ classGroupId, students }: RosterTableProps) {
           </TableHeader>
           <TableBody>
             {students.map((student) => (
-              <TableRow key={student.id} className="group transition-colors hover:bg-gray-50">
+              <TableRow 
+                key={student.id} 
+                className={`group transition-colors hover:bg-gray-50 ${
+                  student.id.startsWith("temp-") ? "opacity-60" : ""
+                }`}
+              >
                 <TableCell className="font-medium text-gray-900">
                   {student.fullName}
+                  {student.id.startsWith("temp-") && (
+                    <Loader2 className="ml-2 inline h-3 w-3 animate-spin text-gray-400" />
+                  )}
                 </TableCell>
                 <TableCell className="text-gray-500">
                   {student.studentNumber || "—"}
@@ -194,25 +201,27 @@ export function RosterTable({ classGroupId, students }: RosterTableProps) {
                   {student.notes || "—"}
                 </TableCell>
                 <TableCell className="text-right">
-                  <DropdownMenu>
-                    <DropdownMenuTrigger className="inline-flex h-9 w-9 items-center justify-center rounded-md opacity-0 transition-opacity group-hover:opacity-100 focus:opacity-100 data-[state=open]:opacity-100 hover:bg-gray-100">
-                      <span className="sr-only">Open menu</span>
-                      <MoreHorizontal className="h-5 w-5 text-gray-500" />
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="w-[180px]">
-                      <DropdownMenuItem onClick={() => openEditDialog(student)} className="py-2 text-base">
-                        <Pencil className="mr-2 h-4 w-4" />
-                        Edit details
-                      </DropdownMenuItem>
-                      <DropdownMenuItem 
-                        className="py-2 text-base text-red-600 focus:text-red-600 focus:bg-red-50"
-                        onClick={() => setStudentToRemove(student.id)}
-                      >
-                        <Trash2 className="mr-2 h-4 w-4" />
-                        Remove
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
+                  {!student.id.startsWith("temp-") && (
+                    <DropdownMenu>
+                      <DropdownMenuTrigger className="inline-flex h-9 w-9 items-center justify-center rounded-md opacity-0 transition-opacity group-hover:opacity-100 focus:opacity-100 data-[state=open]:opacity-100 hover:bg-gray-100">
+                        <span className="sr-only">Open menu</span>
+                        <MoreHorizontal className="h-5 w-5 text-gray-500" />
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" className="w-[180px]">
+                        <DropdownMenuItem onClick={() => openEditDialog(student)} className="py-2 text-base">
+                          <Pencil className="mr-2 h-4 w-4" />
+                          Edit details
+                        </DropdownMenuItem>
+                        <DropdownMenuItem 
+                          className="py-2 text-base text-red-600 focus:text-red-600 focus:bg-red-50"
+                          onClick={() => setStudentToRemove(student.id)}
+                        >
+                          <Trash2 className="mr-2 h-4 w-4" />
+                          Remove
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  )}
                 </TableCell>
               </TableRow>
             ))}
@@ -225,7 +234,7 @@ export function RosterTable({ classGroupId, students }: RosterTableProps) {
         onOpenChange={setIsAddOpen} 
         form={addForm} 
         onSubmit={handleAddSubmit} 
-        isPending={isPending} 
+        isPending={addMutation.isPending} 
       />
 
       <EditStudentDialog 
@@ -233,7 +242,7 @@ export function RosterTable({ classGroupId, students }: RosterTableProps) {
         onOpenChange={(open: boolean) => !open && setEditStudent(null)} 
         form={editForm} 
         onSubmit={handleEditSubmit} 
-        isPending={isPending} 
+        isPending={updateMutation.isPending} 
       />
 
       <ConfirmDialog
@@ -243,7 +252,7 @@ export function RosterTable({ classGroupId, students }: RosterTableProps) {
         description="Are you sure you want to remove this student from the class? Their attendance and gradebook records will be permanently deleted. This action cannot be undone."
         confirmText="Remove Student"
         variant="danger"
-        isLoading={isPending}
+        isLoading={removeMutation.isPending}
         onConfirm={handleRemove}
       />
     </div>

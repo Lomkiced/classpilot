@@ -1,7 +1,7 @@
 import { Sidebar } from "@/components/layout/sidebar";
 import { Topbar } from "@/components/layout/topbar";
 import { redirect } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
+import { getAuthenticatedUser } from "@/lib/auth";
 import { ensureTeacher } from "@/server/actions/teacher";
 
 import { Providers } from "@/components/providers/query-provider";
@@ -12,13 +12,12 @@ export default async function DashboardLayout({
 }: {
   children: React.ReactNode;
 }) {
-  // Verify session server-side (belt-and-suspenders with middleware)
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
+  // Use cached auth — shared with any server actions called during this request.
+  // No more duplicate supabase.auth.getUser() calls.
+  let user;
+  try {
+    user = await getAuthenticatedUser();
+  } catch {
     redirect("/login");
   }
 

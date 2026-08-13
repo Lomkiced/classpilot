@@ -1,15 +1,8 @@
 "use server";
 
 import { prisma } from "@/lib/prisma";
-import { createClient } from "@/lib/supabase/server";
+import { requireTeacherId } from "@/lib/auth";
 import { upsertRemarkSchema, type UpsertRemarkInput } from "@/lib/validations/remarks";
-
-async function requireAuth() {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) throw new Error("Unauthorized");
-  return user.id;
-}
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -34,9 +27,9 @@ function generateBandRemark(firstName: string, bandLabel: string): string {
 // ---------------------------------------------------------------------------
 
 export async function getRemarksForClass(classGroupId: string, gradingPeriod: string) {
-  const teacherId = await requireAuth();
+  const teacherId = await requireTeacherId();
 
-  // Verify ownership
+  // Verify ownership and get students in one query
   const classGroup = await prisma.classGroup.findFirst({
     where: { id: classGroupId, teacherId },
     include: {
@@ -52,29 +45,30 @@ export async function getRemarksForClass(classGroupId: string, gradingPeriod: st
 
   const studentIds = classGroup.students.map((s) => s.studentId);
 
-  // 1. Fetch existing remarks for this period
-  const existingRemarks = await prisma.remark.findMany({
-    where: {
-      classGroupId,
-      gradingPeriod,
-      studentId: { in: studentIds }
-    }
-  });
+  // Parallelize the two independent queries
+  const [existingRemarks, scores] = await Promise.all([
+    // 1. Fetch existing remarks for this period
+    prisma.remark.findMany({
+      where: {
+        classGroupId,
+        gradingPeriod,
+        studentId: { in: studentIds }
+      }
+    }),
+
+    // 2. Fetch all scores for these students in this class
+    prisma.score.findMany({
+      where: {
+        studentId: { in: studentIds },
+        assessment: { classGroupId }
+      },
+      include: {
+        assessment: true
+      }
+    }),
+  ]);
 
   const remarksMap = new Map(existingRemarks.map(r => [r.studentId, r]));
-
-  // 2. Fetch all scores for these students in this class
-  // To compute the average for the grading period, we'll fetch all assessments for this class
-  // In a real app, you might filter assessments by date to match the gradingPeriod.
-  const scores = await prisma.score.findMany({
-    where: {
-      studentId: { in: studentIds },
-      assessment: { classGroupId }
-    },
-    include: {
-      assessment: true
-    }
-  });
 
   // Calculate averages
   const averagesMap = new Map<string, number>();
@@ -112,7 +106,7 @@ export async function getRemarksForClass(classGroupId: string, gradingPeriod: st
 }
 
 export async function upsertRemark(data: UpsertRemarkInput) {
-  const teacherId = await requireAuth();
+  const teacherId = await requireTeacherId();
   const parsed = upsertRemarkSchema.parse(data);
 
   // Verify class ownership
@@ -153,23 +147,29 @@ export async function upsertRemark(data: UpsertRemarkInput) {
 }
 
 export async function suggestRemark(studentId: string, classGroupId: string, gradingPeriod: string) {
-  const teacherId = await requireAuth();
+  const teacherId = await requireTeacherId();
 
-  // We could strictly filter scores by dates corresponding to the gradingPeriod if we wanted to
-  // But for this simple implementation, we'll get their overall class average.
-  const scores = await prisma.score.findMany({
-    where: {
-      studentId,
-      assessment: { classGroupId }
-    },
-    include: {
-      assessment: true
-    }
-  });
+  // Parallelize all 3 independent lookups
+  const [scores, student, activeScale] = await Promise.all([
+    prisma.score.findMany({
+      where: {
+        studentId,
+        assessment: { classGroupId }
+      },
+      include: {
+        assessment: true
+      }
+    }),
 
-  const student = await prisma.student.findUnique({
-    where: { id: studentId }
-  });
+    prisma.student.findUnique({
+      where: { id: studentId }
+    }),
+
+    prisma.gradingScale.findFirst({
+      where: { teacherId, isActive: true },
+      include: { bands: true }
+    }),
+  ]);
 
   if (!student) throw new Error("Student not found");
 
@@ -184,12 +184,6 @@ export async function suggestRemark(studentId: string, classGroupId: string, gra
 
   const avg = total > 0 ? (earned / total) * 100 : 0;
   const firstName = student.fullName.split(" ")[0];
-
-  // Try to use active grading scale
-  const activeScale = await prisma.gradingScale.findFirst({
-    where: { teacherId, isActive: true },
-    include: { bands: true }
-  });
 
   let suggestion = "";
   if (activeScale && activeScale.bands.length > 0) {

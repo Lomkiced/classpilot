@@ -23,3 +23,18 @@
 - Never throw raw database errors to the client.
 - Return structured responses: `return { success: true, data }` or `return { success: false, error: "Friendly message" }`.
 - Use `sonner` for toast notifications on the client side based on these responses.
+
+## 6. Authentication Rule
+- **Always** use `requireTeacherId()` or `getAuthenticatedUser()` from `@/lib/auth`.
+- **Never** call `supabase.auth.getUser()` directly in server actions or utility files.
+- These helpers use `React.cache()` to deduplicate auth calls within a single request, eliminating redundant Supabase network roundtrips.
+
+## 7. Query Performance Rules
+- Independent database queries within a single server action **must** use `Promise.all()` for parallel execution. Sequential queries are only acceptable when one depends on the result of another.
+- Use `prisma.model.count()` instead of `findMany().length` for counting records.
+- Avoid duplicate queries — if you need data in multiple places within an action, fetch it once and pass it through.
+
+## 8. Mutation & Real-Time Rules
+- High-interaction pages (Classes/Roster, Gradebook, Attendance) **must** use TanStack Query with optimistic updates instead of `router.refresh()`.
+- Low-interaction pages (Dashboard, Settings, Lesson Plans list) can continue using `revalidatePath()` for simplicity.
+- Optimistic mutations must include `onError` rollback and `onSettled` invalidation for data consistency.

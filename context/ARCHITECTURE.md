@@ -6,14 +6,14 @@ ClassPilot is built on a modern, React-centric full-stack architecture leveragin
 ## 2. Tech Stack Core
 - **Framework:** Next.js 16 (App Router, Turbopack)
 - **UI & Components:** React 19, `@base-ui/react` (headless accessible components), Tailwind CSS v4, `lucide-react`
-- **State Management:** `zustand` (for lightweight client-side state) & URL search params
+- **State Management:** `zustand` (for lightweight client-side state), `@tanstack/react-query` (for server state on interactive pages), & URL search params
 - **Database & ORM:** PostgreSQL (Supabase), Prisma ORM (v7) with `@prisma/adapter-pg`
 - **Validation:** `zod` and `@hookform/resolvers`
 - **AI & Processing:** `@anthropic-ai/sdk` (Claude), `mammoth` (DOCX parsing), `pdf-parse` (PDF parsing)
 
 ## 3. Architecture Patterns & Data Flow
 ClassPilot uses the **Server-Action-First** pattern:
-1. **Client Layer (`src/components/`, `src/app/`)**: 
+1. **Client Layer (`src/components/`, `src/app/`)**:
    - Uses Server Components by default to stream HTML.
    - Client Components (`"use client"`) are used strictly at the leaves of the render tree for interactivity (e.g., forms, dialogs, dropdowns).
 2. **Server Action Layer (`src/server/actions/`)**:
@@ -26,7 +26,35 @@ ClassPilot uses the **Server-Action-First** pattern:
    - Supabase PostgreSQL manages relational data.
    - Supabase Storage manages uploaded raw lesson plan files securely.
 
-## 4. Key Implementation: AI Auto-Structuring Pipeline
+## 4. Authentication & Authorization
+Authentication is centralized through `src/lib/auth.ts` using React's `cache()` function:
+- **`getAuthenticatedUser()`**: Returns the Supabase user for the current request, cached and deduplicated across the entire request lifecycle (middleware → layout → page → server action).
+- **`requireTeacherId()`**: Convenience wrapper returning just the user ID. Used in all server actions.
+- **Rule**: Never call `supabase.auth.getUser()` directly in server actions — always import from `@/lib/auth`.
+
+## 5. Data Fetching Patterns
+
+### Server Components (SSR-First)
+Pages fetch data in Server Components for fast initial paint. Data is passed as `initialData` to client-side TanStack Query hooks on interactive pages.
+
+### TanStack Query (Client-Side for Interactive Pages)
+High-interaction pages (Classes/Roster, Gradebook) use TanStack Query for:
+- **Optimistic mutations**: Instant UI updates before server confirmation.
+- **Cache management**: Smart invalidation on mutations, configurable stale times.
+- **Error rollback**: Automatic revert to previous state on mutation failure.
+
+Pattern:
+1. Server Component fetches initial data during SSR.
+2. Client Component hydrates TanStack Query with `initialData`.
+3. Mutations use optimistic updates — no `router.refresh()`.
+
+### Query Parallelization
+Independent database queries within a single server action are parallelized using `Promise.all()`. Example:
+```typescript
+const [students, assessments, scores, gradingScale] = await Promise.all([...]);
+```
+
+## 6. Key Implementation: AI Auto-Structuring Pipeline
 To prevent users from manually typing lengthy lesson plans, the system features an AI-driven extraction pipeline:
 - **Input**: User uploads `.docx`, `.pdf`, `.md`, or `.txt`.
 - **Parse**: Server Action reads the file as a buffer, passing it to `mammoth` or `pdf-parse` to extract raw text safely without executing macros.

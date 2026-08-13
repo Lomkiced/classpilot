@@ -1,19 +1,12 @@
 "use server";
 
 import { prisma } from "@/lib/prisma";
-import { createClient } from "@/lib/supabase/server";
+import { requireTeacherId } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
 import { gradingScaleSchema, type GradingScaleInput } from "@/lib/validations/settings";
 
-async function requireAuth() {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) throw new Error("Unauthorized");
-  return user.id;
-}
-
 export async function getGradingScales() {
-  const teacherId = await requireAuth();
+  const teacherId = await requireTeacherId();
 
   return prisma.gradingScale.findMany({
     where: { teacherId },
@@ -27,7 +20,7 @@ export async function getGradingScales() {
 }
 
 export async function getActiveGradingScale() {
-  const teacherId = await requireAuth();
+  const teacherId = await requireTeacherId();
 
   return prisma.gradingScale.findFirst({
     where: { teacherId, isActive: true },
@@ -40,7 +33,7 @@ export async function getActiveGradingScale() {
 }
 
 export async function getGradingScale(id: string) {
-  const teacherId = await requireAuth();
+  const teacherId = await requireTeacherId();
 
   const scale = await prisma.gradingScale.findFirst({
     where: { id, teacherId },
@@ -55,7 +48,7 @@ export async function getGradingScale(id: string) {
 }
 
 export async function upsertGradingScale(id: string | null, data: GradingScaleInput) {
-  const teacherId = await requireAuth();
+  const teacherId = await requireTeacherId();
   const parsed = gradingScaleSchema.parse(data);
 
   return await prisma.$transaction(async (tx) => {
@@ -105,7 +98,7 @@ export async function upsertGradingScale(id: string | null, data: GradingScaleIn
 }
 
 export async function setActiveGradingScale(id: string) {
-  const teacherId = await requireAuth();
+  const teacherId = await requireTeacherId();
 
   await prisma.$transaction(async (tx) => {
     // Unset all others
@@ -128,7 +121,7 @@ export async function setActiveGradingScale(id: string) {
 }
 
 export async function deleteGradingScale(id: string) {
-  const teacherId = await requireAuth();
+  const teacherId = await requireTeacherId();
 
   const existing = await prisma.gradingScale.findFirst({ where: { id, teacherId } });
   if (!existing) throw new Error("Grading scale not found");

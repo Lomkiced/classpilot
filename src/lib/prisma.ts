@@ -11,7 +11,13 @@ const globalForPrisma = globalThis as unknown as {
 };
 
 // In Prisma v7, driver adapters are required for network connections.
-const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+// Pool configuration optimizes connection reuse and prevents exhaustion.
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  max: 10, // Maximum concurrent connections
+  idleTimeoutMillis: 30_000, // Close idle connections after 30s
+  connectionTimeoutMillis: 5_000, // Fail fast if pool is exhausted
+});
 const adapter = new PrismaPg(pool);
 
 export const prisma = globalForPrisma.prisma ?? new PrismaClient({ adapter });

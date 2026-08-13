@@ -1,7 +1,7 @@
 "use server";
 
 import { prisma } from "@/lib/prisma";
-import { createClient } from "@/lib/supabase/server";
+import { requireTeacherId } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
 import { ActionType, ResourceType } from "@/generated/prisma/client";
 import { logAuditAction } from "@/lib/audit-logger";
@@ -14,29 +14,12 @@ import {
   type CreateClassGroupInput,
 } from "@/lib/validations/classes";
 
-/**
- * Get the currently authenticated teacher ID.
- * Throws an error if not authenticated.
- */
-async function requireAuth() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    throw new Error("Unauthorized");
-  }
-
-  return user.id;
-}
-
 // ---------------------------------------------------------------------------
 // Queries
 // ---------------------------------------------------------------------------
 
 export async function getClassGroups() {
-  const teacherId = await requireAuth();
+  const teacherId = await requireTeacherId();
 
   return prisma.classGroup.findMany({
     where: { teacherId },
@@ -48,19 +31,14 @@ export async function getClassGroups() {
 }
 
 export async function getStudentsForClass(classGroupId: string) {
-  const teacherId = await requireAuth();
+  const teacherId = await requireTeacherId();
 
-  // Ensure the class belongs to the teacher
-  const classGroup = await prisma.classGroup.findFirst({
-    where: { id: classGroupId, teacherId },
-  });
-
-  if (!classGroup) {
-    throw new Error("Class not found or unauthorized");
-  }
-
+  // Combined ownership check + student fetch in a single query
   const records = await prisma.classGroupStudent.findMany({
-    where: { classGroupId },
+    where: {
+      classGroupId,
+      classGroup: { teacherId },
+    },
     include: {
       student: true,
     },
@@ -68,6 +46,18 @@ export async function getStudentsForClass(classGroupId: string) {
       student: { fullName: "asc" },
     },
   });
+
+  if (records.length === 0) {
+    // Verify the class actually exists and belongs to the teacher
+    // (distinguishes "empty class" from "unauthorized")
+    const classGroup = await prisma.classGroup.findFirst({
+      where: { id: classGroupId, teacherId },
+    });
+
+    if (!classGroup) {
+      throw new Error("Class not found or unauthorized");
+    }
+  }
 
   return records.map((r) => r.student);
 }
@@ -77,7 +67,7 @@ export async function getStudentsForClass(classGroupId: string) {
 // ---------------------------------------------------------------------------
 
 export async function addStudent(classGroupId: string, data: AddStudentInput) {
-  const teacherId = await requireAuth();
+  const teacherId = await requireTeacherId();
 
   // Validate Input
   const parsed = addStudentSchema.parse(data);
@@ -116,7 +106,7 @@ export async function addStudent(classGroupId: string, data: AddStudentInput) {
 }
 
 export async function updateStudent(studentId: string, data: UpdateStudentInput) {
-  const teacherId = await requireAuth();
+  const teacherId = await requireTeacherId();
 
   const parsed = updateStudentSchema.parse(data);
 
@@ -146,7 +136,7 @@ export async function updateStudent(studentId: string, data: UpdateStudentInput)
 }
 
 export async function removeStudentFromClass(classGroupId: string, studentId: string) {
-  const teacherId = await requireAuth();
+  const teacherId = await requireTeacherId();
 
   // Verify Ownership
   const classGroup = await prisma.classGroup.findFirst({
@@ -172,7 +162,7 @@ export async function removeStudentFromClass(classGroupId: string, studentId: st
 }
 
 export async function createClassGroup(data: CreateClassGroupInput) {
-  const teacherId = await requireAuth();
+  const teacherId = await requireTeacherId();
   const parsed = createClassGroupSchema.parse(data);
 
   const newClass = await prisma.classGroup.create({

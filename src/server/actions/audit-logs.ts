@@ -1,12 +1,10 @@
 "use server";
 
 import { prisma } from "@/lib/prisma";
-import { createClient } from "@/lib/supabase/server";
+import { requireTeacherId } from "@/lib/auth";
 
 export async function getAuditLogs(take: number = 100) {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) throw new Error("Unauthorized");
+  const teacherId = await requireTeacherId();
 
   const logs = await prisma.auditLog.findMany({
     take,

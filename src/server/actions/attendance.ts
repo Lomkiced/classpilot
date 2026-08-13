@@ -1,53 +1,46 @@
 "use server";
 
 import { prisma } from "@/lib/prisma";
-import { createClient } from "@/lib/supabase/server";
+import { requireTeacherId } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
 import { upsertAttendanceSchema, batchMarkAttendanceSchema, type UpsertAttendanceInput, type BatchMarkAttendanceInput } from "@/lib/validations/attendance";
 import { AttendanceStatus, ActionType, ResourceType } from "@/generated/prisma/client";
 import { logAuditAction } from "@/lib/audit-logger";
 
-async function requireAuth() {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) throw new Error("Unauthorized");
-  return user.id;
-}
-
 export async function getAttendanceForDate(classGroupId: string, date: Date) {
-  const teacherId = await requireAuth();
+  const teacherId = await requireTeacherId();
 
-  // Verify ownership
-  const classGroup = await prisma.classGroup.findFirst({
-    where: { id: classGroupId, teacherId },
-  });
+  // Normalize date
+  const startOfDay = new Date(date);
+  startOfDay.setUTCHours(0, 0, 0, 0);
+
+  // Parallelize: verify ownership + fetch students + fetch attendance records
+  const [classGroup, classStudents, records] = await Promise.all([
+    prisma.classGroup.findFirst({
+      where: { id: classGroupId, teacherId },
+    }),
+
+    prisma.classGroupStudent.findMany({
+      where: { classGroupId },
+      include: {
+        student: true,
+      },
+      orderBy: {
+        student: { fullName: "asc" },
+      },
+    }),
+
+    prisma.attendanceRecord.findMany({
+      where: {
+        classGroupId,
+        date: startOfDay,
+      },
+    }),
+  ]);
 
   if (!classGroup) {
     throw new Error("Class not found or unauthorized");
   }
-
-  // Get all students for the class
-  const classStudents = await prisma.classGroupStudent.findMany({
-    where: { classGroupId },
-    include: {
-      student: true,
-    },
-    orderBy: {
-      student: { fullName: "asc" },
-    },
-  });
-
-  // Get attendance records for the specific date
-  // We use start of day and end of day to ensure timezone safety if passing dates
-  const startOfDay = new Date(date);
-  startOfDay.setUTCHours(0, 0, 0, 0);
-  
-  const records = await prisma.attendanceRecord.findMany({
-    where: {
-      classGroupId,
-      date: startOfDay,
-    },
-  });
 
   const recordMap = new Map(records.map(r => [r.studentId, r]));
 
@@ -58,41 +51,42 @@ export async function getAttendanceForDate(classGroupId: string, date: Date) {
 }
 
 export async function getMonthlyAttendance(classGroupId: string, year: number, month: number) {
-  const teacherId = await requireAuth();
-
-  // Verify ownership
-  const classGroup = await prisma.classGroup.findFirst({
-    where: { id: classGroupId, teacherId },
-  });
-
-  if (!classGroup) {
-    throw new Error("Class not found or unauthorized");
-  }
-
-  // Get all students for the class
-  const classStudents = await prisma.classGroupStudent.findMany({
-    where: { classGroupId },
-    include: {
-      student: true,
-    },
-    orderBy: {
-      student: { fullName: "asc" },
-    },
-  });
+  const teacherId = await requireTeacherId();
 
   // Calculate start and end of the month in UTC
   const startDate = new Date(Date.UTC(year, month - 1, 1));
   const endDate = new Date(Date.UTC(year, month, 1));
 
-  const records = await prisma.attendanceRecord.findMany({
-    where: {
-      classGroupId,
-      date: {
-        gte: startDate,
-        lt: endDate,
+  // Parallelize: verify ownership + fetch students + fetch records
+  const [classGroup, classStudents, records] = await Promise.all([
+    prisma.classGroup.findFirst({
+      where: { id: classGroupId, teacherId },
+    }),
+
+    prisma.classGroupStudent.findMany({
+      where: { classGroupId },
+      include: {
+        student: true,
       },
-    },
-  });
+      orderBy: {
+        student: { fullName: "asc" },
+      },
+    }),
+
+    prisma.attendanceRecord.findMany({
+      where: {
+        classGroupId,
+        date: {
+          gte: startDate,
+          lt: endDate,
+        },
+      },
+    }),
+  ]);
+
+  if (!classGroup) {
+    throw new Error("Class not found or unauthorized");
+  }
 
   // Group records by studentId
   const studentRecords = new Map<string, typeof records>();
@@ -113,7 +107,7 @@ export async function getMonthlyAttendance(classGroupId: string, year: number, m
 }
 
 export async function upsertAttendanceRecord(data: UpsertAttendanceInput) {
-  const teacherId = await requireAuth();
+  const teacherId = await requireTeacherId();
   const parsed = upsertAttendanceSchema.parse(data);
 
   // Normalize date to start of UTC day
@@ -168,34 +162,34 @@ export async function upsertAttendanceRecord(data: UpsertAttendanceInput) {
 }
 
 export async function batchMarkAttendance(data: BatchMarkAttendanceInput) {
-  const teacherId = await requireAuth();
+  const teacherId = await requireTeacherId();
   const parsed = batchMarkAttendanceSchema.parse(data);
 
   const normalizedDate = new Date(parsed.date);
   normalizedDate.setUTCHours(0, 0, 0, 0);
 
-  // Verify Ownership
-  const classGroup = await prisma.classGroup.findFirst({
-    where: { id: parsed.classGroupId, teacherId },
-  });
+  // Parallelize: verify ownership + fetch students + fetch existing records
+  const [classGroup, classStudents, existingRecords] = await Promise.all([
+    prisma.classGroup.findFirst({
+      where: { id: parsed.classGroupId, teacherId },
+    }),
+
+    prisma.classGroupStudent.findMany({
+      where: { classGroupId: parsed.classGroupId },
+    }),
+
+    prisma.attendanceRecord.findMany({
+      where: {
+        classGroupId: parsed.classGroupId,
+        date: normalizedDate,
+      },
+      select: { studentId: true },
+    }),
+  ]);
 
   if (!classGroup) {
     throw new Error("Class not found or unauthorized");
   }
-
-  // Find all students currently in the class
-  const classStudents = await prisma.classGroupStudent.findMany({
-    where: { classGroupId: parsed.classGroupId },
-  });
-
-  // Find existing records
-  const existingRecords = await prisma.attendanceRecord.findMany({
-    where: {
-      classGroupId: parsed.classGroupId,
-      date: normalizedDate,
-    },
-    select: { studentId: true },
-  });
 
   const existingStudentIds = new Set(existingRecords.map(r => r.studentId));
 

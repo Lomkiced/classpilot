@@ -1,69 +1,64 @@
 "use server";
 
 import { prisma } from "@/lib/prisma";
-import { createClient } from "@/lib/supabase/server";
+import { requireTeacherId } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
 import { createAssessmentSchema, updateAssessmentSchema, upsertScoreSchema, type CreateAssessmentInput, type UpdateAssessmentInput, type UpsertScoreInput } from "@/lib/validations/gradebook";
-import { getActiveGradingScale } from "@/server/actions/settings";
-
-async function requireAuth() {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) throw new Error("Unauthorized");
-  return user.id;
-}
 
 // ---------------------------------------------------------------------------
 // Queries
 // ---------------------------------------------------------------------------
 
 export async function getGradebookData(classGroupId: string) {
-  const teacherId = await requireAuth();
+  const teacherId = await requireTeacherId();
 
   // Verify Ownership
   const classGroup = await prisma.classGroup.findFirst({
     where: { id: classGroupId, teacherId },
-    include: {
-      students: {
-        include: { student: true },
-        orderBy: { student: { fullName: "asc" } },
-      }
-    }
   });
 
   if (!classGroup) {
     throw new Error("Class not found or unauthorized");
   }
 
-  // 1. Fetch all students in this class
-  const classGroupStudents = await prisma.classGroupStudent.findMany({
-    where: { classGroupId },
-    include: { student: true },
-    orderBy: { student: { fullName: "asc" } },
-  });
+  // Parallelize all 4 independent queries — no duplicate student fetch
+  const [students, assessments, scores, activeGradingScale] = await Promise.all([
+    // Students for this class (single fetch, not duplicated)
+    prisma.classGroupStudent.findMany({
+      where: { classGroupId },
+      include: { student: true },
+      orderBy: { student: { fullName: "asc" } },
+    }).then(records => records.map(cgs => cgs.student)),
 
-  const students = classGroupStudents.map(cgs => cgs.student);
+    // Assessments for this class
+    prisma.assessment.findMany({
+      where: { classGroupId },
+      orderBy: { date: "asc" },
+    }),
 
-  // 2. Fetch all assessments for this class
-  const assessments = await prisma.assessment.findMany({
-    where: { classGroupId },
-    orderBy: { date: "asc" },
-  });
+    // All scores for assessments in this class (filtered server-side)
+    prisma.score.findMany({
+      where: {
+        assessment: { classGroupId },
+      },
+    }),
 
-  // 3. Fetch all scores for these assessments
-  const assessmentIds = assessments.map(a => a.id);
-  const scores = await prisma.score.findMany({
-    where: { assessmentId: { in: assessmentIds } },
-  });
+    // Active grading scale — inlined to avoid separate requireAuth() call
+    prisma.gradingScale.findFirst({
+      where: { teacherId, isActive: true },
+      include: {
+        bands: {
+          orderBy: { order: "asc" },
+        },
+      },
+    }),
+  ]);
 
-  const activeGradingScale = await getActiveGradingScale();
-
-  // 4. Shape the payload for the grid
   return {
     students,
     assessments,
     scores,
-    activeGradingScale
+    activeGradingScale,
   };
 }
 
@@ -72,7 +67,7 @@ export async function getGradebookData(classGroupId: string) {
 // ---------------------------------------------------------------------------
 
 export async function createAssessment(data: CreateAssessmentInput) {
-  const teacherId = await requireAuth();
+  const teacherId = await requireTeacherId();
   const parsed = createAssessmentSchema.parse(data);
 
   // Verify Ownership
@@ -99,7 +94,7 @@ export async function createAssessment(data: CreateAssessmentInput) {
 }
 
 export async function upsertScore(data: UpsertScoreInput) {
-  const teacherId = await requireAuth();
+  const teacherId = await requireTeacherId();
   const parsed = upsertScoreSchema.parse(data);
 
   // Deep Auth Check: Ensure the assessment belongs to a class owned by the teacher
@@ -136,7 +131,7 @@ export async function upsertScore(data: UpsertScoreInput) {
 }
 
 export async function updateAssessment(id: string, data: UpdateAssessmentInput) {
-  const teacherId = await requireAuth();
+  const teacherId = await requireTeacherId();
   const parsed = updateAssessmentSchema.parse(data);
 
   // Deep auth check
@@ -167,7 +162,7 @@ export async function updateAssessment(id: string, data: UpdateAssessmentInput) 
 }
 
 export async function deleteAssessment(id: string) {
-  const teacherId = await requireAuth();
+  const teacherId = await requireTeacherId();
 
   // Deep auth check
   const existing = await prisma.assessment.findFirst({

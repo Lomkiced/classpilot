@@ -1,7 +1,7 @@
 "use server";
 
 import { prisma } from "@/lib/prisma";
-import { createClient } from "@/lib/supabase/server";
+import { requireTeacherId } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
 import { lessonPlanSchema, updateLessonPlanStatusSchema, type LessonPlanInput } from "@/lib/validations/lesson-plans";
 import { LessonPlanStatus, ExtractionStatus, SourceType, Prisma } from "@/generated/prisma/client";
@@ -9,19 +9,12 @@ import { uploadLessonPlanFile } from "@/lib/supabase/storage";
 import { extractTextFromFile } from "@/lib/lesson-plan-extraction/parse-file";
 import { structureContentWithAI } from "@/lib/lesson-plan-extraction/structure-content";
 
-async function requireAuth() {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) throw new Error("Unauthorized");
-  return user.id;
-}
-
 // ---------------------------------------------------------------------------
 // Queries
 // ---------------------------------------------------------------------------
 
 export async function getLessonPlans() {
-  const teacherId = await requireAuth();
+  const teacherId = await requireTeacherId();
 
   return prisma.lessonPlan.findMany({
     where: {
@@ -48,7 +41,7 @@ export async function getLessonPlans() {
 }
 
 export async function getLessonPlan(id: string) {
-  const teacherId = await requireAuth();
+  const teacherId = await requireTeacherId();
 
   const plan = await prisma.lessonPlan.findFirst({
     where: { 
@@ -69,7 +62,7 @@ export async function getLessonPlan(id: string) {
 // ---------------------------------------------------------------------------
 
 export async function createLessonPlan(data: LessonPlanInput) {
-  const teacherId = await requireAuth();
+  const teacherId = await requireTeacherId();
   const parsed = lessonPlanSchema.parse(data);
 
   // Verify class ownership
@@ -98,7 +91,7 @@ export async function createLessonPlan(data: LessonPlanInput) {
 }
 
 export async function updateLessonPlan(id: string, data: LessonPlanInput) {
-  const teacherId = await requireAuth();
+  const teacherId = await requireTeacherId();
   const parsed = lessonPlanSchema.parse(data);
 
   // Deep auth check
@@ -128,7 +121,7 @@ export async function updateLessonPlan(id: string, data: LessonPlanInput) {
 }
 
 export async function updateLessonPlanStatus(id: string, status: LessonPlanStatus) {
-  const teacherId = await requireAuth();
+  const teacherId = await requireTeacherId();
   const parsedStatus = updateLessonPlanStatusSchema.parse(status);
 
   const existing = await prisma.lessonPlan.findFirst({
@@ -148,7 +141,7 @@ export async function updateLessonPlanStatus(id: string, status: LessonPlanStatu
 }
 
 export async function deleteLessonPlan(id: string) {
-  const teacherId = await requireAuth();
+  const teacherId = await requireTeacherId();
 
   const existing = await prisma.lessonPlan.findFirst({
     where: { id, classGroup: { teacherId } }
@@ -167,7 +160,7 @@ export async function deleteLessonPlan(id: string) {
 // ---------------------------------------------------------------------------
 
 export async function uploadAndExtractLessonPlan(formData: FormData) {
-  const teacherId = await requireAuth();
+  const teacherId = await requireTeacherId();
 
   const file = formData.get("file") as File;
   const classGroupId = formData.get("classGroupId") as string;
@@ -271,4 +264,3 @@ export async function uploadAndExtractLessonPlan(formData: FormData) {
   revalidatePath("/lesson-plans");
   return { success: true, data: plan };
 }
-

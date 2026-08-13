@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { ActionType, ResourceType } from "@/generated/prisma/client";
-import { createClient } from "@/lib/supabase/server";
+import { getAuthenticatedUser } from "@/lib/auth";
 
 interface AuditLogPayload {
   action: ActionType;
@@ -12,19 +12,16 @@ interface AuditLogPayload {
 /**
  * Logs an action to the audit logs table.
  * 
+ * Uses the cached auth helper so it doesn't trigger a redundant
+ * Supabase auth roundtrip when called from a server action that
+ * already authenticated the user.
+ * 
  * @param payload The details of the action to log.
  * @returns boolean indicating success
  */
 export async function logAuditAction(payload: AuditLogPayload): Promise<boolean> {
   try {
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    
-    // We can only log if we know who the user is
-    if (!user) {
-      console.warn("Audit Logger: Attempted to log action without authenticated user.");
-      return false;
-    }
+    const user = await getAuthenticatedUser();
 
     await prisma.auditLog.create({
       data: {
