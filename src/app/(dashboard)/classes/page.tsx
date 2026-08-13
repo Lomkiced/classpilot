@@ -61,7 +61,7 @@ export default async function ClassesPage({ searchParams }: PageProps) {
 
       {/* Roster Area — passes server-fetched data as initialData for TanStack Query */}
       <div>
-        <RosterTable classGroupId={activeClass.id} initialStudents={initialStudents} />
+        <RosterTable key={activeClass.id} classGroupId={activeClass.id} initialStudents={initialStudents} />
       </div>
 
     </div>
