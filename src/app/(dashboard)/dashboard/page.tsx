@@ -2,7 +2,8 @@ import Link from "next/link";
 import { format } from "date-fns";
 import { ensureTeacher } from "@/server/actions/teacher";
 import { getDashboardMetrics } from "@/server/actions/dashboard";
-import { FileText, Users, GraduationCap, CheckSquare, ChevronRight, Activity } from "lucide-react";
+import { FileText, Users, GraduationCap, CheckSquare, ChevronRight, Activity, BarChart2 } from "lucide-react";
+import { AnalyticsChart } from "@/components/dashboard/analytics-chart";
 
 export default async function DashboardPage() {
   const teacher = await ensureTeacher();
@@ -47,11 +48,25 @@ export default async function DashboardPage() {
       </div>
 
       {/* Main Content Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+      <div className="grid grid-cols-1 gap-8">
         
-        {/* Lesson Plan Status Table */}
-        <div className="lg:col-span-2 space-y-4">
-          <div className="flex items-center justify-between">
+        {/* Analytics Section */}
+        <div className="space-y-4">
+          <div className="flex items-center gap-2">
+            <BarChart2 className="h-5 w-5 text-gray-400" />
+            <h3 className="text-lg font-semibold text-gray-900">Class Analytics</h3>
+          </div>
+          <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm ring-1 ring-black/5">
+            <AnalyticsChart data={metrics.analytics} />
+          </div>
+        </div>
+
+        {/* Bottom Split */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          
+          {/* Lesson Plan Status Table */}
+          <div className="lg:col-span-2 space-y-4">
+            <div className="flex items-center justify-between">
             <h3 className="text-lg font-semibold text-gray-900">Lesson Plan Status</h3>
             <Link href="/lesson-plans" className="text-sm font-medium text-pink-600 hover:text-pink-700">
               View All
@@ -133,6 +148,7 @@ export default async function DashboardPage() {
           </div>
         </div>
 
+        </div>
       </div>
     </div>
   );

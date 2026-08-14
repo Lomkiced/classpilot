@@ -14,6 +14,7 @@ export async function getDashboardMetrics() {
     pendingScores,
     recentLessonPlans,
     recentAssessments,
+    analyticsClasses,
   ] = await Promise.all([
     // 1. Total Classes
     prisma.classGroup.count({
@@ -80,6 +81,18 @@ export async function getDashboardMetrics() {
         classGroup: { select: { name: true } },
       },
     }),
+
+    // 7. Analytics Data
+    prisma.classGroup.findMany({
+      where: { teacherId },
+      select: {
+        name: true,
+        _count: {
+          select: { students: true, assessments: true },
+        },
+      },
+      orderBy: { createdAt: "asc" },
+    }),
   ]);
 
   // Map to a common activity format
@@ -102,6 +115,12 @@ export async function getDashboardMetrics() {
   activityFeed.sort((a, b) => b.date.getTime() - a.date.getTime());
   const recentActivity = activityFeed.slice(0, 5);
 
+  const analytics = analyticsClasses.map(c => ({
+    name: c.name,
+    students: c._count.students,
+    assessments: c._count.assessments,
+  }));
+
   return {
     totalClasses,
     totalStudents,
@@ -109,5 +128,6 @@ export async function getDashboardMetrics() {
     pendingScores,
     recentLessonPlans,
     recentActivity,
+    analytics,
   };
 }
