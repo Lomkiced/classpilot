@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, memo } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useQueryClient } from "@tanstack/react-query";
@@ -48,10 +48,11 @@ import {
 
 interface GradebookGridProps {
   classGroupId: string;
+  initialData?: GradebookPayload | null;
 }
 
-export function GradebookGrid({ classGroupId }: GradebookGridProps) {
-  const { data, isLoading, isError } = useGradebookQuery(classGroupId);
+export function GradebookGrid({ classGroupId, initialData }: GradebookGridProps) {
+  const { data, isLoading, isError } = useGradebookQuery(classGroupId, initialData || undefined);
   const scoreMutation = useScoreMutation(classGroupId);
   const queryClient = useQueryClient();
 
@@ -295,58 +296,16 @@ export function GradebookGrid({ classGroupId }: GradebookGridProps) {
               const hasGrades = average > 0;
 
               return (
-                <TableRow key={student.id} className="group hover:bg-gray-50">
-                  {/* Sticky Student Name */}
-                  <TableCell className="sticky left-0 z-10 bg-white font-medium text-gray-900 shadow-[1px_0_0_0_#e5e7eb] group-hover:bg-gray-50">
-                    {student.fullName}
-                  </TableCell>
-
-                  {/* Score Inputs */}
-                  {data.assessments.map((assessment) => {
-                    const score = data.scores.find(
-                      (s) => s.studentId === student.id && s.assessmentId === assessment.id
-                    );
-                    const valueStr = score?.value !== null && score?.value !== undefined ? String(score.value) : "";
-                    const prevVal = score?.value ?? null;
-
-                    return (
-                      <TableCell key={assessment.id} className="p-1">
-                        <GradebookCell
-                          initialValue={valueStr}
-                          maxScore={assessment.maxScore}
-                          onSave={(val) => handleCellBlur(assessment.id, student.id, val, prevVal)}
-                        />
-                      </TableCell>
-                    );
-                  })}
-
-                  {/* Computed Average */}
-                  <TableCell className="text-right font-medium">
-                    {hasGrades ? (
-                      <div className="flex items-center justify-end gap-2">
-                        <span className="inline-flex items-center rounded-md bg-gray-100 px-2 py-1 text-xs font-medium text-gray-800">
-                          {average.toFixed(1)}%
-                        </span>
-                        {(() => {
-                          if (!data.activeGradingScale) return null;
-                          const band = data.activeGradingScale.bands.find(
-                            (b: any) => average >= b.minPercent && average <= b.maxPercent
-                          );
-                          if (band) {
-                            return (
-                              <span className="text-xs font-medium text-pink-600 bg-pink-50 px-2 py-1 rounded-md">
-                                {band.label}
-                              </span>
-                            );
-                          }
-                          return null;
-                        })()}
-                      </div>
-                    ) : (
-                      <span className="text-gray-400">—</span>
-                    )}
-                  </TableCell>
-                </TableRow>
+                <GradebookRow 
+                  key={student.id}
+                  student={student}
+                  assessments={data.assessments}
+                  scores={data.scores}
+                  average={average}
+                  hasGrades={hasGrades}
+                  activeGradingScale={data.activeGradingScale}
+                  onCellBlur={handleCellBlur}
+                />
               );
             })}
           </TableBody>
@@ -488,8 +447,70 @@ export function GradebookGrid({ classGroupId }: GradebookGridProps) {
 }
 
 // ---------------------------------------------------------------------------
-// Gradebook Cell Sub-component
+// Gradebook Row & Cell Sub-components
 // ---------------------------------------------------------------------------
+
+const GradebookRow = memo(function GradebookRow({
+  student,
+  assessments,
+  scores,
+  average,
+  hasGrades,
+  activeGradingScale,
+  onCellBlur,
+}: any) {
+  return (
+    <TableRow className="group hover:bg-gray-50">
+      <TableCell className="sticky left-0 z-10 bg-white font-medium text-gray-900 shadow-[1px_0_0_0_#e5e7eb] group-hover:bg-gray-50">
+        {student.fullName}
+      </TableCell>
+
+      {assessments.map((assessment: any) => {
+        const score = scores.find(
+          (s: any) => s.studentId === student.id && s.assessmentId === assessment.id
+        );
+        const valueStr = score?.value !== null && score?.value !== undefined ? String(score.value) : "";
+        const prevVal = score?.value ?? null;
+
+        return (
+          <TableCell key={assessment.id} className="p-1">
+            <GradebookCell
+              initialValue={valueStr}
+              maxScore={assessment.maxScore}
+              onSave={(val) => onCellBlur(assessment.id, student.id, val, prevVal)}
+            />
+          </TableCell>
+        );
+      })}
+
+      <TableCell className="text-right font-medium">
+        {hasGrades ? (
+          <div className="flex items-center justify-end gap-2">
+            <span className="inline-flex items-center rounded-md bg-gray-100 px-2 py-1 text-xs font-medium text-gray-800">
+              {average.toFixed(1)}%
+            </span>
+            {(() => {
+              if (!activeGradingScale) return null;
+              const band = activeGradingScale.bands.find(
+                (b: any) => average >= b.minPercent && average <= b.maxPercent
+              );
+              if (band) {
+                return (
+                  <span className="text-xs font-medium text-pink-600 bg-pink-50 px-2 py-1 rounded-md">
+                    {band.label}
+                  </span>
+                );
+              }
+              return null;
+            })()}
+          </div>
+        ) : (
+          <span className="text-gray-400">—</span>
+        )}
+      </TableCell>
+    </TableRow>
+  );
+});
 
 function GradebookCell({ 
   initialValue, 

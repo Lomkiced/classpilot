@@ -4,11 +4,14 @@ import { useSearchParams } from "next/navigation";
 import { ClassSelector } from "@/components/gradebook/class-selector";
 import { GradebookGrid } from "@/components/gradebook/gradebook-grid";
 
+import type { GradebookPayload } from "@/hooks/use-gradebook";
+
 interface GradebookContainerProps {
   classes: { id: string; name: string }[];
+  initialData?: GradebookPayload | null;
 }
 
-export function GradebookContainer({ classes }: GradebookContainerProps) {
+export function GradebookContainer({ classes, initialData }: GradebookContainerProps) {
   const searchParams = useSearchParams();
   
   if (classes.length === 0) {
@@ -40,7 +43,7 @@ export function GradebookContainer({ classes }: GradebookContainerProps) {
 
       {/* Grid Area - The key prop guarantees complete unmount/remount on class change, preventing stale local state */}
       <div>
-        <GradebookGrid key={activeClass.id} classGroupId={activeClass.id} />
+        <GradebookGrid key={activeClass.id} classGroupId={activeClass.id} initialData={initialData} />
       </div>
     </div>
   );

@@ -13,7 +13,7 @@ export type GradebookPayload = {
   activeGradingScale?: any;
 };
 
-export function useGradebookQuery(classGroupId: string) {
+export function useGradebookQuery(classGroupId: string, initialData?: GradebookPayload) {
   return useQuery({
     queryKey: ["gradebook", classGroupId],
     queryFn: async () => {
@@ -21,6 +21,7 @@ export function useGradebookQuery(classGroupId: string) {
     },
     staleTime: 1000 * 60 * 5, // 5 minutes
     gcTime: 1000 * 60 * 30, // 30 minutes
+    initialData,
   });
 }
 

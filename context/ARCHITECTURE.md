@@ -39,13 +39,14 @@ Pages fetch data in Server Components for fast initial paint. Data is passed as 
 
 ### TanStack Query (Client-Side for Interactive Pages)
 High-interaction pages (Classes/Roster, Gradebook) use TanStack Query for:
+- **Server-Side Hydration**: The server must fetch the initial dataset in `page.tsx` and pass it to the client components as `initialData` to eliminate client-side loading waterfalls (no loading spinners on initial load).
 - **Optimistic mutations**: Instant UI updates before server confirmation.
 - **Cache management**: Smart invalidation on mutations, configurable stale times.
 - **Error rollback**: Automatic revert to previous state on mutation failure.
 
 Pattern:
 1. Server Component fetches initial data during SSR.
-2. Client Component hydrates TanStack Query with `initialData`.
+2. Client Component hydrates TanStack Query with `initialData` via custom hooks.
 3. Mutations use optimistic updates — no `router.refresh()`.
 
 ### Query Parallelization
@@ -53,6 +54,11 @@ Independent database queries within a single server action are parallelized usin
 ```typescript
 const [students, assessments, scores, gradingScale] = await Promise.all([...]);
 ```
+
+### Real-Time Updates
+When live collaboration or immediate consistency across multiple clients is necessary, the architecture supports **Supabase Realtime (WebSockets)**.
+- Use `supabase.channel` to subscribe to database changes (e.g., `INSERT`, `UPDATE`, `DELETE`).
+- Invalidate specific TanStack Query keys when a real-time payload is received, rather than manually patching complex states, unless patching is trivial and performance-critical.
 
 ## 6. Key Implementation: AI Auto-Structuring Pipeline
 To prevent users from manually typing lengthy lesson plans, the system features an AI-driven extraction pipeline:

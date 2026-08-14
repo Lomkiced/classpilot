@@ -30,6 +30,7 @@
 - These helpers use `React.cache()` to deduplicate auth calls within a single request, eliminating redundant Supabase network roundtrips.
 
 ## 7. Query Performance Rules
+- **No N+1 Queries**: Never loop through an array and execute `await prisma...` inside the loop. Use `include` or parallelize with `Promise.all()` for independent queries.
 - Independent database queries within a single server action **must** use `Promise.all()` for parallel execution. Sequential queries are only acceptable when one depends on the result of another.
 - Use `prisma.model.count()` instead of `findMany().length` for counting records.
 - Avoid duplicate queries — if you need data in multiple places within an action, fetch it once and pass it through.
@@ -38,3 +39,7 @@
 - High-interaction pages (Classes/Roster, Gradebook, Attendance) **must** use TanStack Query with optimistic updates instead of `router.refresh()`.
 - Low-interaction pages (Dashboard, Settings, Lesson Plans list) can continue using `revalidatePath()` for simplicity.
 - Optimistic mutations must include `onError` rollback and `onSettled` invalidation for data consistency.
+
+## 9. Frontend Performance Rules
+- **Caching**: Ensure TanStack Query uses appropriate `staleTime` values (e.g., 5-15 minutes for non-volatile data) instead of the default 0 or aggressive 1-minute timers to prevent unnecessary refetches.
+- **Virtualization & Memoization**: Use `@tanstack/react-virtual` and `React.memo()` for lists or grids exceeding 50 items to prevent the entire tree from re-rendering on optimistic updates.
