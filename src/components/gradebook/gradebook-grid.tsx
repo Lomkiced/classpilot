@@ -12,6 +12,7 @@ import type { Assessment } from "@/generated/prisma/client";
 import { useGradebookQuery, useScoreMutation, type GradebookPayload } from "@/hooks/use-gradebook";
 import { createAssessment, updateAssessment, deleteAssessment } from "@/server/actions/gradebook";
 import { createAssessmentSchema, updateAssessmentSchema, type CreateAssessmentInput, type UpdateAssessmentInput } from "@/lib/validations/gradebook";
+import { calculateStudentGrades } from "@/lib/calculations/gradebook";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -48,12 +49,13 @@ import {
 
 interface GradebookGridProps {
   classGroupId: string;
+  activeTerm: "TERM_1" | "TERM_2" | "ALL";
   initialData?: GradebookPayload | null;
 }
 
-export function GradebookGrid({ classGroupId, initialData }: GradebookGridProps) {
-  const { data, isLoading, isError } = useGradebookQuery(classGroupId, initialData || undefined);
-  const scoreMutation = useScoreMutation(classGroupId);
+export function GradebookGrid({ classGroupId, activeTerm, initialData }: GradebookGridProps) {
+  const { data, isLoading, isError } = useGradebookQuery(classGroupId, activeTerm, initialData || undefined);
+  const scoreMutation = useScoreMutation(classGroupId, activeTerm);
   const queryClient = useQueryClient();
 
   const [isAddAssessmentOpen, setIsAddAssessmentOpen] = useState(false);
@@ -69,6 +71,8 @@ export function GradebookGrid({ classGroupId, initialData }: GradebookGridProps)
       classGroupId,
       name: "",
       type: "QUIZ",
+      term: activeTerm === "ALL" ? "TERM_1" : activeTerm,
+      weight: 1,
       maxScore: 100,
       date: new Date(),
     },
@@ -135,6 +139,8 @@ export function GradebookGrid({ classGroupId, initialData }: GradebookGridProps)
     editForm.reset({
       name: assessment.name,
       type: assessment.type as any,
+      term: assessment.term as any,
+      weight: assessment.weight ?? 1,
       maxScore: assessment.maxScore,
       date: assessment.date,
     });
@@ -153,31 +159,25 @@ export function GradebookGrid({ classGroupId, initialData }: GradebookGridProps)
   // ---------------------------------------------------------------------------
   
   const studentAverages = useMemo(() => {
-    if (!data) return new Map<string, number>();
+    if (!data) return new Map();
 
-    const map = new Map<string, number>();
-    
+    const map = new Map();
     for (const student of data.students) {
-      let earned = 0;
-      let totalPossible = 0;
+      const grades = calculateStudentGrades(student.id, data.assessments, data.scores, data.activeGradingScale);
+      
+      // If we are looking at a specific term, show that term's average. Otherwise, cumulative.
+      let displayAverage = grades.cumulativeAverage;
+      if (activeTerm === "TERM_1") displayAverage = grades.term1Average;
+      if (activeTerm === "TERM_2") displayAverage = grades.term2Average;
 
-      for (const assessment of data.assessments) {
-        const scoreRecord = data.scores.find(
-          (s) => s.studentId === student.id && s.assessmentId === assessment.id
-        );
-
-        if (scoreRecord && scoreRecord.value !== null) {
-          earned += scoreRecord.value;
-          totalPossible += assessment.maxScore;
-        }
-      }
-
-      const average = totalPossible > 0 ? (earned / totalPossible) * 100 : 0;
-      map.set(student.id, average);
+      map.set(student.id, {
+        displayAverage,
+        gradeBand: grades.gradeBand
+      });
     }
 
     return map;
-  }, [data]);
+  }, [data, activeTerm]);
 
   // ---------------------------------------------------------------------------
   // Render States
@@ -291,17 +291,20 @@ export function GradebookGrid({ classGroupId, initialData }: GradebookGridProps)
             </TableRow>
           </TableHeader>
           <TableBody>
-            {data.students.map((student) => {
-              const average = studentAverages.get(student.id) || 0;
+            {data.students.map((student, rowIndex) => {
+              const gradesData = studentAverages.get(student.id) || { displayAverage: 0, gradeBand: null };
+              const average = gradesData.displayAverage;
               const hasGrades = average > 0;
 
               return (
                 <GradebookRow 
                   key={student.id}
                   student={student}
+                  rowIndex={rowIndex}
                   assessments={data.assessments}
                   scores={data.scores}
                   average={average}
+                  gradeBand={gradesData.gradeBand}
                   hasGrades={hasGrades}
                   activeGradingScale={data.activeGradingScale}
                   onCellBlur={handleCellBlur}
@@ -343,9 +346,28 @@ export function GradebookGrid({ classGroupId, initialData }: GradebookGridProps)
                     <SelectItem value="ACTIVITY">Activity</SelectItem>
                     <SelectItem value="HOMEWORK">Homework</SelectItem>
                     <SelectItem value="PARTICIPATION">Participation</SelectItem>
+                    <SelectItem value="MIDTERM">Midterm</SelectItem>
+                    <SelectItem value="FINAL">Final</SelectItem>
                   </SelectContent>
                 </Select>
                 {form.formState.errors.type && <p className="text-xs text-red-600">{form.formState.errors.type.message}</p>}
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="add-term">Term</Label>
+                <Select
+                  onValueChange={(val) => form.setValue("term", val as any)}
+                  value={form.watch("term")}
+                >
+                  <SelectTrigger id="add-term" className="focus:ring-pink-500">
+                    <SelectValue placeholder="Select term" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="TERM_1">Term 1</SelectItem>
+                    <SelectItem value="TERM_2">Term 2</SelectItem>
+                  </SelectContent>
+                </Select>
+                {form.formState.errors.term && <p className="text-xs text-red-600">{form.formState.errors.term.message}</p>}
               </div>
 
               <div className="space-y-2">
@@ -398,9 +420,28 @@ export function GradebookGrid({ classGroupId, initialData }: GradebookGridProps)
                     <SelectItem value="ACTIVITY">Activity</SelectItem>
                     <SelectItem value="HOMEWORK">Homework</SelectItem>
                     <SelectItem value="PARTICIPATION">Participation</SelectItem>
+                    <SelectItem value="MIDTERM">Midterm</SelectItem>
+                    <SelectItem value="FINAL">Final</SelectItem>
                   </SelectContent>
                 </Select>
                 {editForm.formState.errors.type && <p className="text-xs text-red-600">{editForm.formState.errors.type.message}</p>}
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="edit-term">Term</Label>
+                <Select
+                  onValueChange={(val) => editForm.setValue("term", val as any)}
+                  value={editForm.watch("term")}
+                >
+                  <SelectTrigger id="edit-term" className="focus:ring-pink-500">
+                    <SelectValue placeholder="Select term" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="TERM_1">Term 1</SelectItem>
+                    <SelectItem value="TERM_2">Term 2</SelectItem>
+                  </SelectContent>
+                </Select>
+                {editForm.formState.errors.term && <p className="text-xs text-red-600">{editForm.formState.errors.term.message}</p>}
               </div>
 
               <div className="space-y-2">
@@ -452,9 +493,11 @@ export function GradebookGrid({ classGroupId, initialData }: GradebookGridProps)
 
 const GradebookRow = memo(function GradebookRow({
   student,
+  rowIndex,
   assessments,
   scores,
   average,
+  gradeBand,
   hasGrades,
   activeGradingScale,
   onCellBlur,
@@ -465,7 +508,7 @@ const GradebookRow = memo(function GradebookRow({
         {student.fullName}
       </TableCell>
 
-      {assessments.map((assessment: any) => {
+      {assessments.map((assessment: any, colIndex: number) => {
         const score = scores.find(
           (s: any) => s.studentId === student.id && s.assessmentId === assessment.id
         );
@@ -473,10 +516,12 @@ const GradebookRow = memo(function GradebookRow({
         const prevVal = score?.value ?? null;
 
         return (
-          <TableCell key={assessment.id} className="p-1">
+          <TableCell key={assessment.id} className="p-0 border-r border-gray-200 focus-within:ring-2 focus-within:ring-inset focus-within:ring-pink-500">
             <GradebookCell
               initialValue={valueStr}
               maxScore={assessment.maxScore}
+              rowIndex={rowIndex}
+              colIndex={colIndex}
               onSave={(val) => onCellBlur(assessment.id, student.id, val, prevVal)}
             />
           </TableCell>
@@ -490,14 +535,10 @@ const GradebookRow = memo(function GradebookRow({
               {average.toFixed(1)}%
             </span>
             {(() => {
-              if (!activeGradingScale) return null;
-              const band = activeGradingScale.bands.find(
-                (b: any) => average >= b.minPercent && average <= b.maxPercent
-              );
-              if (band) {
+              if (gradeBand) {
                 return (
                   <span className="text-xs font-medium text-pink-600 bg-pink-50 px-2 py-1 rounded-md">
-                    {band.label}
+                    {gradeBand.label}
                   </span>
                 );
               }
@@ -514,11 +555,15 @@ const GradebookRow = memo(function GradebookRow({
 
 function GradebookCell({ 
   initialValue, 
-  maxScore, 
+  maxScore,
+  rowIndex,
+  colIndex,
   onSave 
 }: { 
   initialValue: string; 
   maxScore: number; 
+  rowIndex: number;
+  colIndex: number;
   onSave: (val: string) => void;
 }) {
   const [val, setVal] = useState(initialValue);
@@ -528,6 +573,29 @@ function GradebookCell({
     setVal(initialValue);
   }, [initialValue]);
 
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    const directions = {
+      ArrowUp: [-1, 0],
+      ArrowDown: [1, 0],
+      ArrowLeft: [0, -1],
+      ArrowRight: [0, 1],
+      Enter: [1, 0] // Enter moves down like Excel
+    };
+
+    if (e.key in directions) {
+      const [rDelta, cDelta] = directions[e.key as keyof typeof directions];
+      const targetInput = document.querySelector(
+        `input[data-row="${rowIndex + rDelta}"][data-col="${colIndex + cDelta}"]`
+      ) as HTMLInputElement | null;
+      
+      if (targetInput) {
+        e.preventDefault();
+        targetInput.focus();
+        targetInput.select();
+      }
+    }
+  };
+
   return (
     <Input
       type="number"
@@ -535,9 +603,12 @@ function GradebookCell({
       min="0"
       max={maxScore}
       value={val}
+      data-row={rowIndex}
+      data-col={colIndex}
       onChange={(e) => setVal(e.target.value)}
       onBlur={() => onSave(val)}
-      className="h-8 border-transparent bg-transparent text-center text-sm shadow-none focus-visible:border-pink-500 focus-visible:ring-1 focus-visible:ring-pink-500"
+      onKeyDown={handleKeyDown}
+      className="h-10 w-full min-w-[80px] rounded-none border-transparent bg-transparent text-center text-sm shadow-none focus-visible:ring-0 placeholder:text-gray-300"
       placeholder="-"
     />
   );

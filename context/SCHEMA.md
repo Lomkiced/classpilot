@@ -10,21 +10,25 @@ The database is powered by PostgreSQL hosted on Supabase, utilizing Prisma ORM f
 - **Student**: Global to the teacher, can belong to multiple ClassGroups.
 - **ClassGroup**: Represents a specific subject and grade (e.g., "P1 Math"). Contains Students (M:N via `ClassGroupStudent`), LessonPlans, Assessments, and Remarks.
 
-### Academic Tracking
+### Academic Tracking & Multi-Term Structure
+- **AcademicTerm**: Represents standard school terms (e.g., `TERM_1`, `TERM_2`) within an academic year (e.g., `2025-2026`).
 - **GradingScale & GradeBand**: Allows teachers to define dynamic grading rubrics (e.g., A = 80-100%).
-- **Assessment & Score**: Assessments belong to a ClassGroup and have a max score. Scores are individual records linking a Student to an Assessment with a recorded value.
-- **Remark**: End-of-period written comments for students, linking dynamically to GradeBands for context.
+- **Assessment & Score**: Assessments belong to a `ClassGroup` and are partitioned by `term` (e.g., `TERM_1` | `TERM_2`) and optional `weight`. Scores are individual records linking a Student to an Assessment with a recorded value.
+- **Remark**: End-of-period written comments for students per `gradingPeriod` (e.g., "Term 1", "Term 2", "Cumulative"), linking dynamically to GradeBands for context.
 
 ### Lesson Planning
 - **LessonPlan**: Stores structured data (`objectives`, `procedure`, `materials`, etc.).
 - Includes metadata for AI integration (`sourceType`, `sourceFileUrl`, `extractionStatus`).
 
 ## 3. Critical Enums
+- **AcademicTerm**: `TERM_1`, `TERM_2` (expandable to `SUMMER` or custom terms)
+- **AssessmentType**: `QUIZ`, `ACTIVITY`, `HOMEWORK`, `PARTICIPATION`, `MIDTERM`, `FINAL`
 - **LessonPlanStatus**: `DRAFT`, `SUBMITTED`, `APPROVED`
 - **SourceType**: `MANUAL` (created by hand), `UPLOADED` (AI-extracted from document)
 - **ExtractionStatus**: `NOT_APPLICABLE`, `PENDING`, `SUCCESS`, `PARTIAL`, `FAILED`
 
 ## 4. Best Practices & Policies
 - **Cascading Deletes**: `onDelete: Cascade` is heavily utilized to prevent orphan records. For example, deleting an `Assessment` automatically deletes all associated `Score` records. Deleting a `Student` removes their join table links.
+- **Composite Indexing**: Optimized compound indexes on `[classGroupId, term, date]` and `[assessmentId, studentId]` ensure fast queries even with thousands of scores.
 - **UUIDs**: All primary keys are `String @default(uuid()) @db.Uuid`.
 - **Prisma Output**: The Prisma client is generated into `../src/generated/prisma` to prevent module conflicts in Next.js Turbopack.

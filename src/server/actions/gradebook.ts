@@ -9,7 +9,7 @@ import { createAssessmentSchema, updateAssessmentSchema, upsertScoreSchema, type
 // Queries
 // ---------------------------------------------------------------------------
 
-export async function getGradebookData(classGroupId: string) {
+export async function getGradebookData(classGroupId: string, term: "TERM_1" | "TERM_2" | "ALL" = "ALL") {
   const teacherId = await requireTeacherId();
 
   // Verify Ownership
@@ -32,7 +32,10 @@ export async function getGradebookData(classGroupId: string) {
 
     // Assessments for this class
     prisma.assessment.findMany({
-      where: { classGroupId },
+      where: { 
+        classGroupId,
+        ...(term !== "ALL" ? { term } : {})
+      },
       orderBy: { date: "asc" },
     }),
 
@@ -84,6 +87,8 @@ export async function createAssessment(data: CreateAssessmentInput) {
       classGroupId: parsed.classGroupId,
       name: parsed.name,
       type: parsed.type,
+      term: parsed.term,
+      weight: parsed.weight,
       maxScore: parsed.maxScore,
       date: parsed.date,
     },
@@ -151,6 +156,8 @@ export async function updateAssessment(id: string, data: UpdateAssessmentInput) 
     data: {
       name: parsed.name,
       type: parsed.type,
+      term: parsed.term,
+      weight: parsed.weight,
       maxScore: parsed.maxScore,
       date: parsed.date,
     },

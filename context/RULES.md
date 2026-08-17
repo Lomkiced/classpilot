@@ -43,3 +43,8 @@
 ## 9. Frontend Performance Rules
 - **Caching**: Ensure TanStack Query uses appropriate `staleTime` values (e.g., 5-15 minutes for non-volatile data) instead of the default 0 or aggressive 1-minute timers to prevent unnecessary refetches.
 - **Virtualization & Memoization**: Use `@tanstack/react-virtual` and `React.memo()` for lists or grids exceeding 50 items to prevent the entire tree from re-rendering on optimistic updates.
+
+## 10. Gradebook & Matrix Operations Rules
+- **Term-Scoped Caching**: Always pass `term` as part of the TanStack Query key (`["gradebook", classGroupId, term]`) to prevent cross-term data pollution.
+- **Pure Calculation Functions**: All grading arithmetic (weights, category averages, term GPAs) must reside in pure, unit-testable functions under `src/lib/calculations/gradebook.ts` to ensure consistency between client-side optimistic calculation and server-side reporting.
+- **Isolated Cell State**: Individual score cells must maintain isolated local input state and only trigger mutation events on `blur` or `Enter` keypress, avoiding full grid re-renders during keystrokes.

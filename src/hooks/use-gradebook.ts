@@ -13,11 +13,11 @@ export type GradebookPayload = {
   activeGradingScale?: any;
 };
 
-export function useGradebookQuery(classGroupId: string, initialData?: GradebookPayload) {
+export function useGradebookQuery(classGroupId: string, term: "TERM_1" | "TERM_2" | "ALL", initialData?: GradebookPayload) {
   return useQuery({
-    queryKey: ["gradebook", classGroupId],
+    queryKey: ["gradebook", classGroupId, { term }],
     queryFn: async () => {
-      return getGradebookData(classGroupId);
+      return getGradebookData(classGroupId, term);
     },
     staleTime: 1000 * 60 * 5, // 5 minutes
     gcTime: 1000 * 60 * 30, // 30 minutes
@@ -25,7 +25,7 @@ export function useGradebookQuery(classGroupId: string, initialData?: GradebookP
   });
 }
 
-export function useScoreMutation(classGroupId: string) {
+export function useScoreMutation(classGroupId: string, term: "TERM_1" | "TERM_2" | "ALL") {
   const queryClient = useQueryClient();
 
   return useMutation({
@@ -37,14 +37,14 @@ export function useScoreMutation(classGroupId: string) {
     // Optimistic Update
     onMutate: async (newScore) => {
       // Cancel any outgoing refetches so they don't overwrite our optimistic update
-      await queryClient.cancelQueries({ queryKey: ["gradebook", classGroupId] });
+      await queryClient.cancelQueries({ queryKey: ["gradebook", classGroupId, { term }] });
 
       // Snapshot the previous value
-      const previousGradebook = queryClient.getQueryData<GradebookPayload>(["gradebook", classGroupId]);
+      const previousGradebook = queryClient.getQueryData<GradebookPayload>(["gradebook", classGroupId, { term }]);
 
       // Optimistically update to the new value
       if (previousGradebook) {
-        queryClient.setQueryData<GradebookPayload>(["gradebook", classGroupId], (old) => {
+        queryClient.setQueryData<GradebookPayload>(["gradebook", classGroupId, { term }], (old) => {
           if (!old) return old;
 
           const existingScoreIndex = old.scores.findIndex(
@@ -80,7 +80,7 @@ export function useScoreMutation(classGroupId: string) {
     // If the mutation fails, use the context returned from onMutate to roll back
     onError: (err, newScore, context) => {
       if (context?.previousGradebook) {
-        queryClient.setQueryData(["gradebook", classGroupId], context.previousGradebook);
+        queryClient.setQueryData(["gradebook", classGroupId, { term }], context.previousGradebook);
       }
       toast.error("Failed to save score. It has been reverted.");
     },

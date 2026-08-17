@@ -23,6 +23,12 @@
 - We rely on `@base-ui/react` for complex structural components (Dropdowns, Selects, Dialogs) to ensure 100% WAI-ARIA accessibility while allowing completely custom styling.
 - Avoid generic UI libraries that lock in styles. Tailwind utility classes dictate the look and feel.
 - **Icons**: `lucide-react`. Keep icon usage minimal and purposeful. Do not clutter lists with redundant icons.
+- **Segmented Term Controls**: Sleek pill-style segmented tab switchers (`Term 1` | `Term 2` | `Full Year / Cumulative`) with active animated highlights.
+- **Data Grids & Gradebook**:
+  - Sticky row headers for student names with crisp divider shadows (`shadow-[1px_0_0_0_#e5e7eb]`).
+  - Sticky right-side summary columns for term subtotals, final letter grade, and grade band pill badges.
+  - Collapsible category columns with expand/collapse toggle pills to switch between detail view and category aggregate view.
+  - Active cell focus outline (`focus-visible:ring-1 focus-visible:ring-pink-500`) with quick numeric input.
 
 ## 5. Animations
 - **Page Transitions**: Next.js App Router natively supports instant transitions, but utilize standard Tailwind fade-ins for loaded data (`animate-in fade-in duration-500`).

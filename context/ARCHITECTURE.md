@@ -66,3 +66,11 @@ To prevent users from manually typing lengthy lesson plans, the system features 
 - **Parse**: Server Action reads the file as a buffer, passing it to `mammoth` or `pdf-parse` to extract raw text safely without executing macros.
 - **Structure**: The raw text is streamed to Anthropic's Claude API with a strict system prompt to map the raw content into structured JSON (`Title`, `Objectives`, `Materials`, `Procedure`, `Assessment`).
 - **Persistence**: Structured data is saved via Prisma, original file pushed to Supabase Storage, and the client UI is refreshed via `revalidatePath`.
+
+## 7. Gradebook & Multi-Term Architecture
+To handle large assessment volumes (e.g. 50–100+ assessments per school year across 2 distinct terms):
+- **Term-Scoped Queries & Caching**: TanStack Query keys are scoped by class and term: `["gradebook", classGroupId, term]`. Queries fetch only active term assessments by default, drastically reducing initial payload and memory footprint.
+- **Cumulative Mode**: When "All Terms / Full Year" view is selected, queries aggregate Term 1 and Term 2 data, computing weighted term averages alongside yearly final grades.
+- **Virtualized High-Density Grid**: For high column counts, virtualized row and column windowing via `@tanstack/react-virtual` renders only visible cells within the viewport, maintaining 60fps scrolling.
+- **Collapsible Category Columns**: Assessments can be collapsed by `AssessmentType` (e.g. collapse 20 Quizzes into a single "Quiz Subtotal (35%)" column) to reduce visual clutter.
+- **Granular Local State & Optimistic Debounce**: Grade inputs maintain localized state and commit optimistic updates on blur/enter with keyboard navigation (arrow keys, Tab, Enter) for frictionless grading.

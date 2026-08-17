@@ -44,6 +44,13 @@ enum AssessmentType {
   ACTIVITY
   HOMEWORK
   PARTICIPATION
+  MIDTERM
+  FINAL
+}
+
+enum AcademicTerm {
+  TERM_1
+  TERM_2
 }
 
 enum SourceType {
@@ -204,6 +211,8 @@ model Assessment {
   classGroupId String         @db.Uuid
   name         String
   type         AssessmentType
+  term         AcademicTerm   @default(TERM_1)
+  weight       Float?         @default(1.0)
   maxScore     Float
   date         DateTime
   createdAt    DateTime       @default(now())
@@ -212,7 +221,7 @@ model Assessment {
   classGroup ClassGroup @relation(fields: [classGroupId], references: [id], onDelete: Cascade)
   scores     Score[]
 
-  @@index([classGroupId])
+  @@index([classGroupId, term, date])
   @@map("assessments")
 }
 
