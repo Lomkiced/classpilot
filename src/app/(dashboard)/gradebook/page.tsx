@@ -7,18 +7,24 @@ export default async function GradebookPage({
 }: {
   searchParams: Promise<{ [key: string]: string | string[] | undefined }>
 }) {
-  // Fetch classes once on the server
-  const classes = await getClassGroups();
   const params = await searchParams;
-
   const classIdParam = params.class as string | undefined;
-  const activeClass = classIdParam 
-    ? classes.find((c) => c.id === classIdParam) || classes[0]
-    : classes[0];
 
+  let classes: any[] = [];
   let initialData = null;
-  if (activeClass) {
-    initialData = await getGradebookData(activeClass.id);
+
+  if (classIdParam) {
+    const [fetchedClasses, fetchedData] = await Promise.all([
+      getClassGroups(),
+      getGradebookData(classIdParam).catch(() => null),
+    ]);
+    classes = fetchedClasses;
+    initialData = fetchedData;
+  } else {
+    classes = await getClassGroups();
+    if (classes.length > 0) {
+      initialData = await getGradebookData(classes[0].id).catch(() => null);
+    }
   }
 
   // The client container handles URL parsing (via useSearchParams), caching, 

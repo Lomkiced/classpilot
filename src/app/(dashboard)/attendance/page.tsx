@@ -13,11 +13,9 @@ export default async function AttendancePage({
   searchParams: Promise<{ classId?: string; date?: string; mode?: string }>;
 }) {
   const params = await searchParams;
-  const classes = await getClassGroups();
-
-  const selectedClassId = params.classId || (classes.length > 0 ? classes[0].id : "");
+  const classIdParam = params.classId as string | undefined;
   const mode = params.mode || "daily";
-  
+
   // Default to today if no date provided
   let selectedDate = new Date();
   if (params.date) {
@@ -30,18 +28,39 @@ export default async function AttendancePage({
   // Normalize date for safe fetching
   selectedDate.setUTCHours(0, 0, 0, 0);
 
+  let classes: any[] = [];
   let dailyData: any[] = [];
   let monthlyData: any = null;
+  let selectedClassId = classIdParam || "";
 
-  if (selectedClassId) {
-    try {
-      if (mode === "daily") {
-        dailyData = await getAttendanceForDate(selectedClassId, selectedDate);
-      } else {
-        monthlyData = await getMonthlyAttendance(selectedClassId, selectedDate.getUTCFullYear(), selectedDate.getUTCMonth() + 1);
+  if (classIdParam) {
+    const fetchAttendance = mode === "daily" 
+      ? getAttendanceForDate(classIdParam, selectedDate)
+      : getMonthlyAttendance(classIdParam, selectedDate.getUTCFullYear(), selectedDate.getUTCMonth() + 1);
+
+    const [fetchedClasses, fetchedAttendance] = await Promise.all([
+      getClassGroups(),
+      fetchAttendance.catch((e) => {
+        console.error("Failed to load attendance", e);
+        return null;
+      })
+    ]);
+    classes = fetchedClasses;
+    if (mode === "daily") dailyData = fetchedAttendance || [];
+    else monthlyData = fetchedAttendance;
+  } else {
+    classes = await getClassGroups();
+    if (classes.length > 0) {
+      selectedClassId = classes[0].id;
+      try {
+        if (mode === "daily") {
+          dailyData = await getAttendanceForDate(selectedClassId, selectedDate);
+        } else {
+          monthlyData = await getMonthlyAttendance(selectedClassId, selectedDate.getUTCFullYear(), selectedDate.getUTCMonth() + 1);
+        }
+      } catch (error) {
+        console.error("Failed to load attendance", error);
       }
-    } catch (error) {
-      console.error("Failed to load attendance", error);
     }
   }
 

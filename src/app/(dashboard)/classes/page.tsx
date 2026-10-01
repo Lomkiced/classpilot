@@ -7,8 +7,25 @@ interface PageProps {
 }
 
 export default async function ClassesPage({ searchParams }: PageProps) {
-  const classes = await getClassGroups();
   const awaitedSearchParams = await searchParams;
+  const activeClassParam = awaitedSearchParams.class as string | undefined;
+
+  let classes: any[] = [];
+  let initialStudents: any[] = [];
+
+  if (activeClassParam) {
+    const [fetchedClasses, fetchedStudents] = await Promise.all([
+      getClassGroups(),
+      getStudentsForClass(activeClassParam).catch(() => []),
+    ]);
+    classes = fetchedClasses;
+    initialStudents = fetchedStudents;
+  } else {
+    classes = await getClassGroups();
+    if (classes.length > 0) {
+      initialStudents = await getStudentsForClass(classes[0].id).catch(() => []);
+    }
+  }
 
   // No classes state (before running seed script)
   if (classes.length === 0) {
@@ -20,13 +37,7 @@ export default async function ClassesPage({ searchParams }: PageProps) {
     );
   }
 
-  // Determine active class from URL search param `?class=<id>`
-  // Default to the first class if none provided
-  const activeClassParam = awaitedSearchParams.class as string;
   const activeClass = classes.find((c) => c.id === activeClassParam) || classes[0];
-
-  // Fetch students on the server for initial data (avoids loading state on first render)
-  const initialStudents = await getStudentsForClass(activeClass.id);
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500">

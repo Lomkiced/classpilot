@@ -42,7 +42,10 @@ export async function getGradebookData(classGroupId: string, term: "TERM_1" | "T
     // All scores for assessments in this class (filtered server-side)
     prisma.score.findMany({
       where: {
-        assessment: { classGroupId },
+        assessment: { 
+          classGroupId,
+          ...(term !== "ALL" ? { term } : {}) 
+        },
       },
     }),
 
