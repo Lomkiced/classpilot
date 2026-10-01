@@ -46,7 +46,7 @@ export default async function AttendancePage({
       })
     ]);
     classes = fetchedClasses;
-    if (mode === "daily") dailyData = fetchedAttendance || [];
+    if (mode === "daily") dailyData = (fetchedAttendance as any[]) || [];
     else monthlyData = fetchedAttendance;
   } else {
     classes = await getClassGroups();
